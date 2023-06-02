@@ -10,7 +10,7 @@
     "author": "Phil Thomas",
     "license": "SEE LICENSE IN LICENSE",
     "dependencies": {
-        "http-server": "^14.1.0"
+        "http-server": "^14.1.1"
     },
     "repository": {
         "type": "git",
