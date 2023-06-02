@@ -1,0 +1,871 @@
+* source: /home/ultraviolet/github/personal/gigatron/main.py
+              address
+              |    encoding
+              |    |     instruction
+              |    |     |    operands
+              |    |     |    |
+              V    V     V    V
+              0000 0000  ld   $00
+              0001 c200  st   [$00]
+              0002 0001  ld   $01
+              0003 c280  st   [$80]
+              0004 0070  ld   $70
+              0005 c21d  st   [$1d]
+              0006 0001  ld   $01
+              0007 c21e  st   [$1e]
+              0008 0080  ld   $80
+              0009 c220  st   [$20]
+              000a 00c0  ld   $c0
+              000b c21f  st   [$1f]
+              000c 0000  ld   $00
+              000d c203  st   [$03]
+              000e 007f  ld   $7f
+              000f c209  st   [$09]
+              0010 c205  st   [$05]
+              0011 003b  ld   $3b
+              0012 c211  st   [$11]
+              0013 0019  ld   $19
+              0014 c20d  st   [$0d]
+              0015 0000  ld   $00
+              0016 c215  st   [$15]
+              0017 0030  ld   $30
+              0018 c219  st   [$19]
+              0019 007f  ld   $7f
+              001a c20a  st   [$0a]
+              001b c206  st   [$06]
+              001c 000a  ld   $0a
+              001d c212  st   [$12]
+              001e 0079  ld   $79
+              001f c20e  st   [$0e]
+              0020 0000  ld   $00
+              0021 c216  st   [$16]
+              0022 0030  ld   $30
+              0023 c21a  st   [$1a]
+              0024 007f  ld   $7f
+              0025 c20b  st   [$0b]
+              0026 c207  st   [$07]
+              0027 0009  ld   $09
+              0028 c213  st   [$13]
+              0029 0006  ld   $06
+              002a c20f  st   [$0f]
+              002b 0000  ld   $00
+              002c c217  st   [$17]
+              002d 0030  ld   $30
+              002e c21b  st   [$1b]
+              002f 007f  ld   $7f
+              0030 c20c  st   [$0c]
+              0031 c208  st   [$08]
+              0032 0006  ld   $06
+              0033 c214  st   [$14]
+              0034 0043  ld   $43
+              0035 c210  st   [$10]
+              0036 0000  ld   $00
+              0037 c218  st   [$18]
+              0038 0030  ld   $30
+              0039 c21c  st   [$1c]
+              003a 0000  ld   $00
+              003b c221  st   [$21]
+              003c 0004  ld   $04
+              003d c222  st   [$22]
+              003e 000a  ld   $0a
+              003f c201  st   [$01]
+              0040 1406  ld   $06,y
+              0041 e000  jmp  y,$00
+              0042 0200  nop
+              0043 0200  nop              ;189 fillers
+              0044 0200  nop
+              0045 0200  nop
+              * 189 times
+oscillators:
+osc0:         0100 1920  ld   [$20],out
+              0101 0109  ld   [$09]
+              0102 ec0f  bne  osc0.skip
+              0103 0105  ld   [$05]
+              0104 810d  adda [$0d]
+              0105 3080  anda $80,x
+              0106 207f  anda $7f
+              0107 c205  st   [$05]
+              0108 0111  ld   [$11]
+              0109 8500  adda [x]
+              010a c209  st   [$09]
+              010b 0115  ld   [$15]
+              010c 60f0  xora $f0
+              010d fc16  bra  osc0.join
+              010e c215  st   [$15]
+osc0.skip:    010f 0109  ld   [$09]
+              0110 a001  suba $01
+              0111 c209  st   [$09]
+              0112 0002  ld   $02         ;Wait 7 cycles
+              0113 ec13  bne  $0113
+              0114 a001  suba $01
+              0115 0115  ld   [$15]
+osc0.join:    0116 2119  anda [$19]
+              0117 4101  ora  [$01]
+              0118 c204  st   [$04]
+              0119 001c  ld   $1c
+              011a fd1d  bra  [$1d]
+              011b c203  st   [$03]
+osc1:         011c 1920  ld   [$20],out
+              011d 010a  ld   [$0a]
+              011e ec2b  bne  osc1.skip
+              011f 0106  ld   [$06]
+              0120 810e  adda [$0e]
+              0121 3080  anda $80,x
+              0122 207f  anda $7f
+              0123 c206  st   [$06]
+              0124 0112  ld   [$12]
+              0125 8500  adda [x]
+              0126 c20a  st   [$0a]
+              0127 0116  ld   [$16]
+              0128 60f0  xora $f0
+              0129 fc32  bra  osc1.join
+              012a c216  st   [$16]
+osc1.skip:    012b 010a  ld   [$0a]
+              012c a001  suba $01
+              012d c20a  st   [$0a]
+              012e 0002  ld   $02         ;Wait 7 cycles
+              012f ec2f  bne  $012f
+              0130 a001  suba $01
+              0131 0116  ld   [$16]
+osc1.join:    0132 211a  anda [$1a]
+              0133 8104  adda [$04]
+              0134 c204  st   [$04]
+              0135 0038  ld   $38
+              0136 fd1d  bra  [$1d]
+              0137 c203  st   [$03]
+osc2:         0138 1920  ld   [$20],out
+              0139 010b  ld   [$0b]
+              013a ec47  bne  osc2.skip
+              013b 0107  ld   [$07]
+              013c 810f  adda [$0f]
+              013d 3080  anda $80,x
+              013e 207f  anda $7f
+              013f c207  st   [$07]
+              0140 0113  ld   [$13]
+              0141 8500  adda [x]
+              0142 c20b  st   [$0b]
+              0143 0117  ld   [$17]
+              0144 60f0  xora $f0
+              0145 fc4e  bra  osc2.join
+              0146 c217  st   [$17]
+osc2.skip:    0147 010b  ld   [$0b]
+              0148 a001  suba $01
+              0149 c20b  st   [$0b]
+              014a 0002  ld   $02         ;Wait 7 cycles
+              014b ec4b  bne  $014b
+              014c a001  suba $01
+              014d 0117  ld   [$17]
+osc2.join:    014e 211b  anda [$1b]
+              014f 8104  adda [$04]
+              0150 c204  st   [$04]
+              0151 0054  ld   $54
+              0152 fd1d  bra  [$1d]
+              0153 c203  st   [$03]
+osc3:         0154 1920  ld   [$20],out
+              0155 010c  ld   [$0c]
+              0156 ec63  bne  osc3.skip
+              0157 0108  ld   [$08]
+              0158 8110  adda [$10]
+              0159 3080  anda $80,x
+              015a 207f  anda $7f
+              015b c208  st   [$08]
+              015c 0114  ld   [$14]
+              015d 8500  adda [x]
+              015e c20c  st   [$0c]
+              015f 0118  ld   [$18]
+              0160 60f0  xora $f0
+              0161 fc6a  bra  osc3.join
+              0162 c218  st   [$18]
+osc3.skip:    0163 010c  ld   [$0c]
+              0164 a001  suba $01
+              0165 c20c  st   [$0c]
+              0166 0002  ld   $02         ;Wait 7 cycles
+              0167 ec67  bne  $0167
+              0168 a001  suba $01
+              0169 0118  ld   [$18]
+osc3.join:    016a 211c  anda [$1c]
+              016b 8104  adda [$04]
+              016c c202  st   [$02]
+              016d 0000  ld   $00
+              016e fd1d  bra  [$1d]
+              016f c203  st   [$03]
+visible0:     0170 007a  ld   $7a
+              0171 c21d  st   [$1d]
+              0172 0102  ld   [$02]
+              0173 191f  ld   [$1f],out
+              0174 0001  ld   $01         ;Wait 6 cycles
+              0175 ec75  bne  $0175
+              0176 a001  suba $01
+              0177 0200  nop
+              0178 fcff  bra  pixels
+              0179 0200  nop
+visible1:     017a 0084  ld   $84
+              017b c21d  st   [$1d]
+              017c 0102  ld   [$02]
+              017d 191f  ld   [$1f],out
+              017e 0001  ld   $01         ;Wait 6 cycles
+              017f ec7f  bne  $017f
+              0180 a001  suba $01
+              0181 0200  nop
+              0182 fcff  bra  pixels
+              0183 0200  nop
+visible2:     0184 008e  ld   $8e
+              0185 c21d  st   [$1d]
+              0186 0102  ld   [$02]
+              0187 191f  ld   [$1f],out
+              0188 0001  ld   $01         ;Wait 6 cycles
+              0189 ec89  bne  $0189
+              018a a001  suba $01
+              018b 0200  nop
+              018c fcff  bra  pixels
+              018d 0200  nop
+visible3:     018e 0200  nop
+              018f 1522  ld   [$22],y
+              0190 0102  ld   [$02]
+              0191 191f  ld   [$1f],out
+              0192 011e  ld   [$1e]
+              0193 8001  adda $01
+              0194 c21e  st   [$1e]
+              0195 6079  xora $79
+              0196 ec9c  bne  visible3.else
+              0197 00a0  ld   $a0
+              0198 c21d  st   [$1d]
+              0199 0008  ld   $08
+              019a e121  jmp  y,[$21]
+              019b c21e  st   [$1e]
+visible3.else:
+              019c 0070  ld   $70
+              019d c21d  st   [$1d]
+              019e e121  jmp  y,[$21]
+              019f 0200  nop
+vFrontFirst:  01a0 0200  nop
+              01a1 1403  ld   $03,y
+              01a2 0102  ld   [$02]
+              01a3 191f  ld   [$1f],out
+              01a4 00a7  ld   $a7
+              01a5 e000  jmp  y,$00
+              01a6 c21d  st   [$1d]
+vFront:       01a7 1522  ld   [$22],y
+              01a8 0200  nop
+              01a9 0102  ld   [$02]
+              01aa 191f  ld   [$1f],out
+              01ab 011e  ld   [$1e]
+              01ac ecb5  bne  vFront.skip
+              01ad a001  suba $01
+              01ae 00bc  ld   $bc
+              01af c21d  st   [$1d]
+              01b0 0001  ld   $01
+              01b1 c21e  st   [$1e]
+              01b2 0200  nop
+              01b3 e121  jmp  y,[$21]
+              01b4 0200  nop
+vFront.skip:  01b5 c21e  st   [$1e]
+              01b6 0200  nop
+              01b7 0200  nop
+              01b8 0200  nop
+              01b9 0200  nop
+              01ba e121  jmp  y,[$21]
+              01bb 0200  nop
+vSync:        01bc 0000  ld   $00
+              01bd c220  st   [$20]
+              01be 0102  ld   [$02]
+              01bf 1840  ld   $40,out
+              01c0 0040  ld   $40
+              01c1 c21f  st   [$1f]
+              01c2 011e  ld   [$1e]
+              01c3 ecca  bne  vSync.skip
+              01c4 1522  ld   [$22],y
+              01c5 00cf  ld   $cf
+              01c6 c21d  st   [$1d]
+              01c7 0020  ld   $20
+              01c8 e121  jmp  y,[$21]
+              01c9 c21e  st   [$1e]
+vSync.skip:   01ca a001  suba $01
+              01cb c21e  st   [$1e]
+              01cc 0200  nop
+              01cd e121  jmp  y,[$21]
+              01ce 0200  nop
+vBack:        01cf 0080  ld   $80
+              01d0 c220  st   [$20]
+              01d1 0102  ld   [$02]
+              01d2 18c0  ld   $c0,out
+              01d3 00c0  ld   $c0
+              01d4 c21f  st   [$1f]
+              01d5 011e  ld   [$1e]
+              01d6 ecdd  bne  vBack.skip
+              01d7 1522  ld   [$22],y
+              01d8 0070  ld   $70
+              01d9 c21d  st   [$1d]
+              01da 0001  ld   $01
+              01db e121  jmp  y,[$21]
+              01dc c21e  st   [$1e]
+vBack.skip:   01dd a001  suba $01
+              01de c21e  st   [$1e]
+              01df 0200  nop
+              01e0 e121  jmp  y,[$21]
+              01e1 0200  nop
+              01e2 0200  nop
+              01e3 0200  nop
+              * 30 times
+pixels:       01ff 011e  ld   [$1e]
+              0200 b401  suba $01,y
+              0201 1000  ld   $00,x
+              0202 00c0  ld   $c0
+              0203 5d00  ora  [y,x++],out
+              0204 5d00  ora  [y,x++],out
+              0205 5d00  ora  [y,x++],out
+              * 160 times
+              02a3 191f  ld   [$1f],out
+              02a4 1401  ld   $01,y
+              02a5 e103  jmp  y,[$03]
+              02a6 0200  nop
+              02a7 0200  nop              ;89 fillers
+              02a8 0200  nop
+              02a9 0200  nop
+              * 89 times
+perFrame:     0300 0131  ld   [$31]
+              0301 ec0e  bne  perFrame.noTest
+              0302 a001  suba $01
+              0303 003b  ld   $3b
+              0304 c231  st   [$31]
+              0305 0132  ld   [$32]
+              0306 8001  adda $01
+              0307 203f  anda $3f
+              0308 c232  st   [$32]
+              0309 0005  ld   $05
+              030a c222  st   [$22]
+              030b 0000  ld   $00
+              030c fc16  bra  perFrame.join
+              030d c221  st   [$21]
+perFrame.noTest:
+              030e c231  st   [$31]
+              030f 0003  ld   $03
+              0310 c222  st   [$22]
+              0311 0022  ld   $22
+              0312 c221  st   [$21]
+              0313 0001  ld   $01         ;Wait 5 cycles
+              0314 ec14  bne  $0314
+              0315 a001  suba $01
+perFrame.join:
+              0316 0014  ld   $14
+              0317 c229  st   [$29]
+              0318 c22a  st   [$2a]
+              0319 0132  ld   [$32]
+              031a c230  st   [$30]
+              031b 0045  ld   $45         ;Wait 142 cycles
+              031c ec1c  bne  $031c
+              031d a001  suba $01
+              031e 0200  nop
+              031f 1401  ld   $01,y
+              0320 e103  jmp  y,[$03]
+              0321 0200  nop
+idle:         0322 004f  ld   $4f         ;Wait 162 cycles
+              0323 ec23  bne  $0323
+              0324 a001  suba $01
+              0325 0200  nop
+              0326 1401  ld   $01,y
+              0327 e103  jmp  y,[$03]
+              0328 0200  nop
+block_drawPiece:
+              0329 002d  ld   $2d
+              032a c227  st   [$27]
+              032b fc4e  bra  getCell
+              032c 0125  ld   [$25]
+block_drawPiece.return:
+              032d 0125  ld   [$25]
+              032e a001  suba $01
+              032f c225  st   [$25]
+              0330 e833  blt  $0333
+              0331 fc34  bra  $0334
+              0332 0029  ld   $29
+              0333 0022  ld   $22
+              0334 c221  st   [$21]
+              0335 001a  ld   $1a         ;Wait 55 cycles
+              0336 ec36  bne  $0336
+              0337 a001  suba $01
+drawCell:     0338 0004  ld   $04
+drawCell.loop:
+              0339 c223  st   [$23]
+              033a 952f  adda [$2f],y
+              033b 112e  ld   [$2e],x
+              033c 0130  ld   [$30]
+              033d de00  st   [y,x++]
+              033e de00  st   [y,x++]
+              033f de00  st   [y,x++]
+              * 5 times
+              0342 0123  ld   [$23]
+              0343 ec39  bne  drawCell.loop
+              0344 a001  suba $01
+              0345 0129  ld   [$29]
+              0346 9002  adda $02,x
+              0347 012a  ld   [$2a]
+              0348 9402  adda $02,y
+              0349 003f  ld   $3f
+              034a ce00  st   [y,x]
+              034b 1401  ld   $01,y
+              034c e103  jmp  y,[$03]
+              034d 0200  nop
+getCell:      034e 9128  adda [$28],x
+              034f 1401  ld   $01,y
+              0350 0d00  ld   [y,x]
+              0351 d234  st   [$34],x
+              0352 1402  ld   $02,y
+              0353 0d00  ld   [y,x]
+              0354 a005  suba $05
+              0355 c233  st   [$33]
+              0356 0134  ld   [$34]
+              0357 2007  anda $07
+              0358 a001  suba $01
+              0359 c234  st   [$34]
+              035a 8200  adda ac
+              035b 8200  adda ac
+              035c 8134  adda [$34]
+              035d c234  st   [$34]
+              035e 012b  ld   [$2b]
+              035f f062  beq  $0362
+              0360 fc63  bra  $0363
+              0361 0133  ld   [$33]
+              0362 a133  suba [$33]
+              0363 c233  st   [$33]
+              0364 012c  ld   [$2c]
+              0365 f068  beq  $0368
+              0366 fc69  bra  $0369
+              0367 0134  ld   [$34]
+              0368 a134  suba [$34]
+              0369 c234  st   [$34]
+              036a 012d  ld   [$2d]
+              036b f073  beq  getCell.noSwap
+              036c 0133  ld   [$33]
+              036d 812a  adda [$2a]
+              036e c22f  st   [$2f]
+              036f 0134  ld   [$34]
+              0370 8129  adda [$29]
+              0371 fd27  bra  [$27]
+              0372 c22e  st   [$2e]
+getCell.noSwap:
+              0373 8129  adda [$29]
+              0374 c22e  st   [$2e]
+              0375 0134  ld   [$34]
+              0376 812a  adda [$2a]
+              0377 fd27  bra  [$27]
+              0378 c22f  st   [$2f]
+block_tryRotate:
+              0379 0126  ld   [$26]
+              037a 9021  adda $21,x
+              037b 1401  ld   $01,y
+              037c 0d00  ld   [y,x]
+              037d d236  st   [$36],x
+              037e 1402  ld   $02,y
+              037f 0d00  ld   [y,x]
+              0380 c224  st   [$24]
+              0381 0126  ld   [$26]
+              0382 901c  adda $1c,x
+              0383 1401  ld   $01,y
+              0384 0d00  ld   [y,x]
+              0385 d235  st   [$35],x
+              0386 1402  ld   $02,y
+              0387 0d00  ld   [y,x]
+              0388 a124  suba [$24]
+              0389 c237  st   [$37]
+              038a 8129  adda [$29]
+              038b c229  st   [$29]
+              038c 0135  ld   [$35]
+              038d 2007  anda $07
+              038e c224  st   [$24]
+              038f 0136  ld   [$36]
+              0390 2007  anda $07
+              0391 a124  suba [$24]
+              0392 c224  st   [$24]
+              0393 8200  adda ac
+              0394 8200  adda ac
+              0395 8124  adda [$24]
+              0396 c238  st   [$38]
+              0397 812a  adda [$2a]
+              0398 c22a  st   [$2a]
+              0399 0000  ld   $00
+              039a c239  st   [$39]
+              039b 00a1  ld   $a1
+              039c c227  st   [$27]
+              039d 0001  ld   $01
+block_tryRotate.loop:
+              039e c225  st   [$25]
+              039f fc4e  bra  getCell
+              03a0 8002  adda $02
+block_tryRotate.checkRet:
+              03a1 112e  ld   [$2e],x
+              03a2 152f  ld   [$2f],y
+              03a3 0d00  ld   [y,x]
+              03a4 2080  anda $80
+              03a5 4139  ora  [$39]
+              03a6 c239  st   [$39]
+              03a7 0125  ld   [$25]
+              03a8 ec9e  bne  block_tryRotate.loop
+              03a9 a001  suba $01
+              03aa 000f  ld   $0f         ;Wait 33 cycles
+              03ab ecab  bne  $03ab
+              03ac a001  suba $01
+              03ad 00b2  ld   $b2
+              03ae c221  st   [$21]
+              03af 1401  ld   $01,y
+              03b0 e103  jmp  y,[$03]
+              03b1 0200  nop
+block_tryRotate2:
+              03b2 00b7  ld   $b7
+              03b3 c227  st   [$27]
+              03b4 0001  ld   $01
+block_tryRotate2.loop:
+              03b5 fc4e  bra  getCell
+              03b6 c225  st   [$25]
+block_tryRotate2.checkRet:
+              03b7 112e  ld   [$2e],x
+              03b8 152f  ld   [$2f],y
+              03b9 0d00  ld   [y,x]
+              03ba 2080  anda $80
+              03bb 4139  ora  [$39]
+              03bc c239  st   [$39]
+              03bd 0125  ld   [$25]
+              03be ecb5  bne  block_tryRotate2.loop
+              03bf a001  suba $01
+              03c0 0139  ld   [$39]
+              03c1 f0e2  beq  block_tryRotate2.noCollision
+              03c2 0126  ld   [$26]
+              03c3 fcc3  bra  $03c3
+              03c4 a004  suba $04
+              03c5 ecd3  bne  block_tryRotate2.noCollision.retry
+              03c6 012c  ld   [$2c]
+              03c7 c224  st   [$24]
+              03c8 012b  ld   [$2b]
+              03c9 c22c  st   [$2c]
+              03ca 0001  ld   $01
+              03cb a124  suba [$24]
+              03cc c22b  st   [$2b]
+              03cd 0001  ld   $01
+              03ce a12d  suba [$2d]
+              03cf c22d  st   [$2d]
+              03d0 00ef  ld   $ef
+              03d1 fcdb  bra  block_tryRotate2.noCollision.join
+              03d2 c221  st   [$21]
+block_tryRotate2.noCollision.retry:
+              03d3 0126  ld   [$26]
+              03d4 8001  adda $01
+              03d5 c226  st   [$26]
+              03d6 0079  ld   $79
+              03d7 c221  st   [$21]
+              03d8 0002  ld   $02         ;Wait 7 cycles
+              03d9 ecd9  bne  $03d9
+              03da a001  suba $01
+block_tryRotate2.noCollision.join:
+              03db 0129  ld   [$29]
+              03dc a137  suba [$37]
+              03dd c229  st   [$29]
+              03de 012a  ld   [$2a]
+              03df a138  suba [$38]
+              03e0 fce8  bra  block_tryRotate2.join
+              03e1 c22a  st   [$2a]
+block_tryRotate2.noCollision:
+              03e2 00ef  ld   $ef
+              03e3 c221  st   [$21]
+              03e4 0008  ld   $08         ;Wait 20 cycles
+              03e5 ece5  bne  $03e5
+              03e6 a001  suba $01
+              03e7 0200  nop
+block_tryRotate2.join:
+              03e8 0013  ld   $13         ;Wait 42 cycles
+              03e9 ece9  bne  $03e9
+              03ea a001  suba $01
+              03eb 0200  nop
+              03ec 1401  ld   $01,y
+              03ed e103  jmp  y,[$03]
+              03ee 0200  nop
+test_nextThing:
+              03ef 004d  ld   $4d         ;Wait 158 cycles
+              03f0 ecf0  bne  $03f0
+              03f1 a001  suba $01
+              03f2 0200  nop
+              03f3 0003  ld   $03
+              03f4 c225  st   [$25]
+              03f5 0029  ld   $29
+              03f6 c221  st   [$21]
+              03f7 1401  ld   $01,y
+              03f8 e103  jmp  y,[$03]
+              03f9 0200  nop
+              03fa 0200  nop              ;6 fillers
+              03fb 0200  nop
+              03fc 0200  nop
+              * 6 times
+block_clearScreen:
+              0400 0125  ld   [$25]
+              0401 9407  adda $07,y
+              0402 1000  ld   $00,x
+              0403 dc15  st   $15,[y,x++]
+              0404 dc15  st   $15,[y,x++]
+              0405 dc15  st   $15,[y,x++]
+              * 80 times
+              0453 0125  ld   [$25]
+              0454 a001  suba $01
+              0455 ec61  bne  block_clearScreen.continue
+              0456 c225  st   [$25]
+              0457 0022  ld   $22
+              0458 c221  st   [$21]
+              0459 0003  ld   $03
+              045a c221  st   [$21]
+              045b 0022  ld   $22         ;Wait 71 cycles
+              045c ec5c  bne  $045c
+              045d a001  suba $01
+              045e 1401  ld   $01,y
+              045f e103  jmp  y,[$03]
+              0460 0200  nop
+block_clearScreen.continue:
+              0461 0024  ld   $24         ;Wait 75 cycles
+              0462 ec62  bne  $0462
+              0463 a001  suba $01
+              0464 1401  ld   $01,y
+              0465 e103  jmp  y,[$03]
+              0466 0200  nop
+              0467 0200  nop              ;153 fillers
+              0468 0200  nop
+              0469 0200  nop
+              * 153 times
+block_setupRotation:
+              0500 000c  ld   $0c
+              0501 c227  st   [$27]
+              0502 012b  ld   [$2b]
+              0503 8200  adda ac
+              0504 412d  ora  [$2d]
+              0505 1402  ld   $02,y
+              0506 4128  ora  [$28]
+              0507 9040  adda $40,x
+              0508 0d00  ld   [y,x]
+              0509 1401  ld   $01,y
+              050a fe00  bra  ac
+              050b 101c  ld   $1c,x
+block_setupRotation.ret_src:
+              050c 012b  ld   [$2b]
+              050d c224  st   [$24]
+              050e 012c  ld   [$2c]
+              050f c22b  st   [$2b]
+              0510 0001  ld   $01
+              0511 a124  suba [$24]
+              0512 c22c  st   [$2c]
+              0513 0001  ld   $01
+              0514 a12d  suba [$2d]
+              0515 c22d  st   [$2d]
+              0516 0022  ld   $22
+              0517 c227  st   [$27]
+              0518 012b  ld   [$2b]
+              0519 8200  adda ac
+              051a 412d  ora  [$2d]
+              051b 1402  ld   $02,y
+              051c 4128  ora  [$28]
+              051d 9040  adda $40,x
+              051e 0d00  ld   [y,x]
+              051f 1401  ld   $01,y
+              0520 fe00  bra  ac
+              0521 1021  ld   $21,x
+block_setupRotation.ret_dst:
+              0522 0000  ld   $00
+              0523 c226  st   [$26]
+              0524 0079  ld   $79
+              0525 c221  st   [$21]
+              0526 0003  ld   $03
+              0527 c222  st   [$22]
+              0528 0046  ld   $46         ;Wait 144 cycles
+              0529 ec29  bne  $0529
+              052a a001  suba $01
+              052b 0200  nop
+              052c 1401  ld   $01,y
+              052d e103  jmp  y,[$03]
+              052e 0200  nop
+kick_jlstz_0: 052f dc12  st   $12,[y,x++]
+              0530 dc12  st   $12,[y,x++]
+              0531 dc12  st   $12,[y,x++]
+              0532 dc12  st   $12,[y,x++]
+              0533 fd27  bra  [$27]
+              0534 dc12  st   $12,[y,x++]
+kick_jlstz_1: 0535 dc12  st   $12,[y,x++]
+              0536 dc1a  st   $1a,[y,x++]
+              0537 dc19  st   $19,[y,x++]
+              0538 dc14  st   $14,[y,x++]
+              0539 fd27  bra  [$27]
+              053a dc1c  st   $1c,[y,x++]
+kick_jlstz_2: 053b dc12  st   $12,[y,x++]
+              053c dc12  st   $12,[y,x++]
+              053d dc12  st   $12,[y,x++]
+              053e dc12  st   $12,[y,x++]
+              053f fd27  bra  [$27]
+              0540 dc12  st   $12,[y,x++]
+kick_jlstz_3: 0541 dc12  st   $12,[y,x++]
+              0542 dc0a  st   $0a,[y,x++]
+              0543 dc09  st   $09,[y,x++]
+              0544 dc14  st   $14,[y,x++]
+              0545 fd27  bra  [$27]
+              0546 dc0c  st   $0c,[y,x++]
+kick_i_0:     0547 dc12  st   $12,[y,x++]
+              0548 dc0a  st   $0a,[y,x++]
+              0549 dc22  st   $22,[y,x++]
+              054a dc0a  st   $0a,[y,x++]
+              054b fd27  bra  [$27]
+              054c dc22  st   $22,[y,x++]
+kick_i_1:     054d dc0a  st   $0a,[y,x++]
+              054e dc12  st   $12,[y,x++]
+              054f dc12  st   $12,[y,x++]
+              0550 dc13  st   $13,[y,x++]
+              0551 fd27  bra  [$27]
+              0552 dc10  st   $10,[y,x++]
+kick_i_2:     0553 dc0b  st   $0b,[y,x++]
+              0554 dc1b  st   $1b,[y,x++]
+              0555 dc03  st   $03,[y,x++]
+              0556 dc1a  st   $1a,[y,x++]
+              0557 fd27  bra  [$27]
+              0558 dc02  st   $02,[y,x++]
+kick_i_3:     0559 dc13  st   $13,[y,x++]
+              055a dc13  st   $13,[y,x++]
+              055b dc13  st   $13,[y,x++]
+              055c dc11  st   $11,[y,x++]
+              055d fd27  bra  [$27]
+              055e dc14  st   $14,[y,x++]
+kick_o_0:     055f dc12  st   $12,[y,x++]
+              0560 dc12  st   $12,[y,x++]
+              0561 dc12  st   $12,[y,x++]
+              0562 dc12  st   $12,[y,x++]
+              0563 fd27  bra  [$27]
+              0564 dc12  st   $12,[y,x++]
+kick_o_1:     0565 dc11  st   $11,[y,x++]
+              0566 dc11  st   $11,[y,x++]
+              0567 dc11  st   $11,[y,x++]
+              0568 dc11  st   $11,[y,x++]
+              0569 fd27  bra  [$27]
+              056a dc11  st   $11,[y,x++]
+kick_o_2:     056b dc09  st   $09,[y,x++]
+              056c dc09  st   $09,[y,x++]
+              056d dc09  st   $09,[y,x++]
+              056e dc09  st   $09,[y,x++]
+              056f fd27  bra  [$27]
+              0570 dc09  st   $09,[y,x++]
+kick_o_3:     0571 dc0a  st   $0a,[y,x++]
+              0572 dc0a  st   $0a,[y,x++]
+              0573 dc0a  st   $0a,[y,x++]
+              0574 dc0a  st   $0a,[y,x++]
+              0575 fd27  bra  [$27]
+              0576 dc0a  st   $0a,[y,x++]
+              0577 0200  nop              ;137 fillers
+              0578 0200  nop
+              0579 0200  nop
+              * 137 times
+initTables:   0600 0078  ld   $78
+              0601 c225  st   [$25]
+              0602 0000  ld   $00
+              0603 c232  st   [$32]
+              0604 003c  ld   $3c
+              0605 c231  st   [$31]
+              0606 0004  ld   $04
+              0607 c228  st   [$28]
+              0608 0000  ld   $00
+              0609 c22b  st   [$2b]
+              060a c22c  st   [$2c]
+              060b c22d  st   [$2d]
+              060c 1401  ld   $01,y
+              060d 1000  ld   $00,x
+              060e dc01  st   $01,[y,x++]
+              060f dc09  st   $09,[y,x++]
+              0610 dc11  st   $11,[y,x++]
+              0611 dc19  st   $19,[y,x++]
+              0612 dc09  st   $09,[y,x++]
+              0613 dc11  st   $11,[y,x++]
+              0614 dc08  st   $08,[y,x++]
+              0615 dc10  st   $10,[y,x++]
+              0616 dc01  st   $01,[y,x++]
+              0617 dc08  st   $08,[y,x++]
+              0618 dc09  st   $09,[y,x++]
+              0619 dc11  st   $11,[y,x++]
+              061a dc00  st   $00,[y,x++]
+              061b dc01  st   $01,[y,x++]
+              061c dc09  st   $09,[y,x++]
+              061d dc11  st   $11,[y,x++]
+              061e dc01  st   $01,[y,x++]
+              061f dc09  st   $09,[y,x++]
+              0620 dc10  st   $10,[y,x++]
+              0621 dc11  st   $11,[y,x++]
+              0622 dc01  st   $01,[y,x++]
+              0623 dc08  st   $08,[y,x++]
+              0624 dc09  st   $09,[y,x++]
+              0625 dc10  st   $10,[y,x++]
+              0626 dc00  st   $00,[y,x++]
+              0627 dc08  st   $08,[y,x++]
+              0628 dc09  st   $09,[y,x++]
+              0629 dc11  st   $11,[y,x++]
+              062a 1402  ld   $02,y
+              062b 1000  ld   $00,x
+              062c 0000  ld   $00
+              062d de00  st   [y,x++]
+              062e de00  st   [y,x++]
+              062f de00  st   [y,x++]
+              * 8 times
+              0635 0005  ld   $05
+              0636 de00  st   [y,x++]
+              0637 de00  st   [y,x++]
+              0638 de00  st   [y,x++]
+              * 8 times
+              063e 000a  ld   $0a
+              063f de00  st   [y,x++]
+              0640 de00  st   [y,x++]
+              0641 de00  st   [y,x++]
+              * 8 times
+              0647 000f  ld   $0f
+              0648 de00  st   [y,x++]
+              0649 de00  st   [y,x++]
+              064a de00  st   [y,x++]
+              * 8 times
+              0650 0014  ld   $14
+              0651 de00  st   [y,x++]
+              0652 de00  st   [y,x++]
+              0653 de00  st   [y,x++]
+              * 8 times
+              0659 0019  ld   $19
+              065a de00  st   [y,x++]
+              065b de00  st   [y,x++]
+              065c de00  st   [y,x++]
+              * 8 times
+              0662 001e  ld   $1e
+              0663 de00  st   [y,x++]
+              0664 de00  st   [y,x++]
+              0665 de00  st   [y,x++]
+              * 8 times
+              066b 0023  ld   $23
+              066c de00  st   [y,x++]
+              066d de00  st   [y,x++]
+              066e de00  st   [y,x++]
+              * 8 times
+              0674 1040  ld   $40,x
+              0675 dc47  st   $47,[y,x++]
+              0676 dc4d  st   $4d,[y,x++]
+              0677 dc53  st   $53,[y,x++]
+              0678 dc59  st   $59,[y,x++]
+              0679 dc5f  st   $5f,[y,x++]
+              067a dc65  st   $65,[y,x++]
+              067b dc6b  st   $6b,[y,x++]
+              067c dc71  st   $71,[y,x++]
+              067d dc2f  st   $2f,[y,x++]
+              067e dc35  st   $35,[y,x++]
+              067f dc3b  st   $3b,[y,x++]
+              0680 dc41  st   $41,[y,x++]
+              0681 dc2f  st   $2f,[y,x++]
+              0682 dc35  st   $35,[y,x++]
+              0683 dc3b  st   $3b,[y,x++]
+              0684 dc41  st   $41,[y,x++]
+              0685 dc2f  st   $2f,[y,x++]
+              0686 dc35  st   $35,[y,x++]
+              0687 dc3b  st   $3b,[y,x++]
+              0688 dc41  st   $41,[y,x++]
+              0689 dc2f  st   $2f,[y,x++]
+              068a dc35  st   $35,[y,x++]
+              068b dc3b  st   $3b,[y,x++]
+              068c dc41  st   $41,[y,x++]
+              068d dc2f  st   $2f,[y,x++]
+              068e dc35  st   $35,[y,x++]
+              068f dc3b  st   $3b,[y,x++]
+              0690 dc41  st   $41,[y,x++]
+              0691 1401  ld   $01,y
+              0692 e103  jmp  y,[$03]
+              0693 0200  nop
+              0694
