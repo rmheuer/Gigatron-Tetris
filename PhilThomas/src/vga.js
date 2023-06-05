@@ -45,10 +45,12 @@ export class Vga {
         let out = this.cpu.out;
         let falling = this.out & ~out;
 
+	let rendered = false;
         if (falling & VSYNC) {
             this.row = -1; // After 4 more CPU cycles HSYNC increments row to 0
             this.pixel = 0;
             this.render();
+	    rendered = true;
         }
 
         if (falling & HSYNC) {
@@ -79,5 +81,7 @@ export class Vga {
         }
 
         this.col += 4;
+
+	return rendered;
     }
 }

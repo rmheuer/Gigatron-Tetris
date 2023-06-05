@@ -16,6 +16,9 @@ import {
 import {
     Loader,
 } from './loader.js';
+import {
+    RamView,
+} from './ram-view.js';
 
 const {
     finalize,
@@ -32,6 +35,8 @@ $(function() {
     let volumeSlider = $('#volume-slider');
     let vgaCanvas = $('#vga-canvas');
     let loadFileInput = $('#load-file-input');
+    let ramViewArea = document.getElementById('ram_view');//$('#ram_view');
+    console.log(ramViewArea);
 
     /** Trigger a keydown/keyup event in response to a mousedown/mouseup event
      * @param {JQuery} $button
@@ -165,6 +170,8 @@ $(function() {
 
     let loader = new Loader(cpu);
 
+    let ramView = new RamView(ramViewArea, cpu.ram);
+
     muteButton.click(function() {
         audio.mute = true;
         $([muteButton, unmuteButton]).toggleClass('d-none');
@@ -253,7 +260,9 @@ $(function() {
             audio.drain();
             while (cycles-- >= 0 && !audio.full) {
                 cpu.tick();
-                vga.tick();
+		if (vga.tick()) {
+		    ramView.render();
+		}
                 audio.tick();
                 loader.tick();
             }

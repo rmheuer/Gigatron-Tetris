@@ -176,14 +176,15 @@ def pc():
   """Current ROM address"""
   return _romSize
 
-def zpByte(len=1):
+def zpByte(name, len=1):
   """Allocate one or more bytes from the zero-page"""
-  global _zpSize
+  global _zpSize, _zpSymbols
   s = _zpSize
   if s <= 0x80 and 0x80 < s + len:
    s = 0x81 # Keep 0x80 reserved
   _zpSize = s+len
   assert _zpSize <= 0x100
+  _zpSymbols.append((s, len, name))
   return s
 
 def zpReset(startFrom=1):
@@ -251,6 +252,7 @@ _labels = {} # Inverse of _symbols, but only when made with label(). For disasse
 _comments = {}
 _rom0, _rom1, _linenos = [], [], []
 _listing, _listingSource, _lineno = None, None, None
+_zpSymbols = [] # Tuple(addr, len, name)
 
 # General instruction layout
 _maskOp   = 0b11100000
@@ -664,6 +666,12 @@ def writeRomFiles(sourceFile):
   # Write ROM file
   with open(filename, 'wb') as file:
     file.write(_rom2)
+
+  filename = stem + '.sym'
+  print('Create file', filename)
+  with open(filename, 'w') as file:
+    for addr, length, name in _zpSymbols:
+      file.write('z ' + str(addr) + ' ' + str(length) + ' '  + name + '\n')
 
   print('ROM bytes %d words %d' % (len(_rom2), len(_rom2)//2))
   print('Words used %d unused %d' % (_romSize, _maxRomSize-_romSize))

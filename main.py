@@ -23,28 +23,28 @@ vFrontTime = 10
 vSyncTime = 2
 vBackTime = 33
 
-leds = zpByte()
-xout = zpByte()
+leds = zpByte('leds')
+xout = zpByte('xout')
 
-oscNext = zpByte()
-oscMix = zpByte()
-oscTimerLo = zpByte(4)
-oscTimerHi = zpByte(4)
-oscIntervalLo = zpByte(4)
-oscIntervalHi = zpByte(4)
-oscOut = zpByte(4)
-oscVolume = zpByte(4)
+oscNext = zpByte('oscNext')
+oscMix = zpByte('oscMix')
+oscTimerLo = zpByte('oscTimerLo', 4)
+oscTimerHi = zpByte('oscTimerHi', 4)
+oscIntervalLo = zpByte('oscIntervalLo', 4)
+oscIntervalHi = zpByte('oscIntervalHi', 4)
+oscOut = zpByte('oscOut', 4)
+oscVolume = zpByte('oscVolume', 4)
 
-nextVideo = zpByte()
-videoLine = zpByte()
-videoSync_idle = zpByte()
-videoSync_hSync = zpByte()
+nextVideo = zpByte('nextVideo')
+videoLine = zpByte('videoLine')
+videoSync_idle = zpByte('videoSync_idle')
+videoSync_hSync = zpByte('videoSync_hSync')
 
-nextCodeLo = zpByte()
-nextCodeHi = zpByte()
+nextCodeLo = zpByte('nextCodeLo')
+nextCodeHi = zpByte('nextCodeHi')
 
-loopIdx = zpByte()
-temp = zpByte()
+loopIdx = zpByte('loopIdx')
+temp = zpByte('temp')
 
 musicPtrLo = 255
 musicPtrHi = 254
@@ -292,9 +292,9 @@ while lo(pc()) != 255:
     nop()
 
 label('pixels')
-ld([videoLine])
-suba(1, Y)
-#ld([videoLine], Y)                 # 33
+#ld([videoLine])
+#suba(1, Y)
+ld([videoLine], Y)                 # 33
 ld(0, X)                           # 34
 ld(syncBits)                       # 35
 for i in range(160):
@@ -304,31 +304,57 @@ returnToLoop()
 
 # ---- TETRIS ----
 
-index1 = zpByte()
-index2 = zpByte()
-retPtr = zpByte()
+index1 = zpByte('index1')
+index2 = zpByte('index2')
+retPtr = zpByte('retPtr')
 
-currentPiece = zpByte()
-pieceX = zpByte()
-pieceY = zpByte()
-flipX = zpByte()
-flipY = zpByte()
-swapAxes = zpByte()
+currentPiece = zpByte('currentPiece')
+pieceX = zpByte('pieceX')
+pieceY = zpByte('pieceY')
+flipX = zpByte('flipX')
+flipY = zpByte('flipY')
+swapAxes = zpByte('swapAxes')
 
-cellX = zpByte()
-cellY = zpByte()
-color = zpByte()
+cellX = zpByte('cellX')
+cellY = zpByte('cellY')
+color = zpByte('color')
 
 kickPage = 1
 srcKickTbl = 7 * 4
 dstKickTbl = srcKickTbl + 5
 kickIndirectionTbl = 64
 
+# Overall flow:
+#
+# Begin game:
+# Clear screen
+# Draw grid bounds
+# Gen new piece
+#
+# perFrame:
+# drawPiece(background) : Erase current piece graphic
+#
+# if rotate button rising, try rotate
+#
+# if left button rising, try move piece left
+# if right button rising, try move piece right
+#
+# if down button pressed, set drop timer rate to fast, else normal
+# if down button rising, set drop timer to 0 for immediate drop
+# if down timer expires:
+#   move piece down
+#   if collides:
+#     move piece up
+#     drawPiece(pieceColor | collision bit)
+#     gen new piece
+#
+# drawPiece(pieceColor) : Draw updated piece graphic
+
 # Page 3: Code
 align(0x100, 0x100)
 
-tester = zpByte()
-tester2 = zpByte()
+tester = zpByte('tester')
+tester2 = zpByte('tester2')
 
 label('perFrame')
 
@@ -358,9 +384,6 @@ wait(5)
 
 label('perFrame.join')
 
-ld(20)
-st([pieceX])
-st([pieceY])
 ld([tester2])
 st([color])
 
@@ -419,8 +442,8 @@ returnToLoop()
 # Desired index should be in AC
 # Return address should be in [retPtr]
 # 35 cycles
-offsetX = zpByte()
-offsetY = zpByte()
+offsetX = zpByte('offsetX')
+offsetY = zpByte('offsetY')
 offset = offsetY
 label('getCell')
 
@@ -480,10 +503,10 @@ adda([pieceY])            # 33
 bra([retPtr])             # 34
 st([cellY])               # 35
 
-srcOffset = zpByte()
-dstOffset = zpByte()
-netOffsetX = zpByte()
-netOffsetY = zpByte()
+srcOffset = zpByte('srcOffset')
+dstOffset = zpByte('dstOffset')
+netOffsetX = zpByte('netOffsetX')
+netOffsetY = zpByte('netOffsetY')
 label('block_tryRotate')
 ld([index2])
 adda(dstKickTbl, X)
@@ -521,7 +544,7 @@ st([netOffsetY])
 adda([pieceY])
 st([pieceY]) # 28 TODO: FIX NUMBERS
 
-collide = zpByte()
+collide = zpByte('collide')
 ld(0) # 29
 st([collide]) # 30
 
@@ -575,7 +598,7 @@ beq('block_tryRotate2.noCollision')       # 97
 ld([index2])                              # 98
 bra(pc()) # REMOVE
 suba(4)                                   # V 99
-bne('block_tryRotate2.noCollision.retry') # | 100
+bne('block_tryRotate2.collision.retry')   # | 100
 # Last attempt failed, no rotation          | |
 # CCW rotation                              | |
 ld([flipY])                               # | 101
@@ -589,10 +612,10 @@ ld(1)                                     # | | 108
 suba([swapAxes])                          # | | 109
 st([swapAxes])                            # | | 110
 ld('test_nextThing')                                # | | 111
-bra('block_tryRotate2.noCollision.join')  # | | 112
+bra('block_tryRotate2.collision.join')    # | | 112
 st([nextCodeLo])                          # | | 113 >-+
                                           # | |       |
-label('block_tryRotate2.noCollision.retry')#| |       |
+label('block_tryRotate2.collision.retry') # | |       |
 # Retry next attempt with next offset       | V       |
 ld([index2])                              # | 102     |
 adda(1)                                   # | 103     |
@@ -600,7 +623,7 @@ st([index2])                              # | 104     |
 ld('block_tryRotate')                     # | 105     |
 st([nextCodeLo])                          # | 106     |
 wait(7)                                   # | 107-113 |
-label('block_tryRotate2.noCollision.join')# | |       |
+label('block_tryRotate2.collision.join')  # | |       |
                                           # | |       |
 ld([pieceX])                              # | 114 <---+
 suba([netOffsetX])                        # | 115
@@ -652,7 +675,7 @@ returnToLoop()
 # Page 4: Code (cont.)
 align(0x100, 0x100)
 
-# 18 cycles; 12 cycles local, 6 cycles in load
+# 19 cycles; 13 cycles local, 6 cycles in load
 def fetchKickTable(name, target):
     rotIdx = temp
 
@@ -661,7 +684,8 @@ def fetchKickTable(name, target):
     st([retPtr])    
     
     # Calculate rotation index
-    ld([flipX])
+    ld(1)
+    suba([flipX])
     adda(AC)
     ora([swapAxes]) # Will result in index 0, 1, 2, 3 clockwise
 
@@ -679,7 +703,7 @@ def fetchKickTable(name, target):
 
 label('block_setupRotation')
 
-fetchKickTable('src', srcKickTbl) # 18 Get current kick offsets before rotation
+fetchKickTable('src', srcKickTbl) # 19 Get current kick offsets before rotation
 
 # Rotate clockwise
 ld([flipX])
@@ -691,9 +715,9 @@ suba([temp])
 st([flipY])
 ld(1)
 suba([swapAxes])
-st([swapAxes]) # 28
+st([swapAxes]) # 29
 
-fetchKickTable('dst', dstKickTbl) # 46 Get current kick offsets after rotation
+fetchKickTable('dst', dstKickTbl) # 48 Get current kick offsets after rotation
 
 # TODO: Do rotation attempt sequence instead of immediate draw
 ld(0)
@@ -709,7 +733,7 @@ st([nextCodeHi])
 #ld(hi('block_drawPiece'))
 #st([nextCodeHi])
 
-wait(150 - 6) # 47...196
+wait(150 - 6) # 48...196
 returnToLoop()
 
 # kickPage should be in Y
@@ -753,11 +777,16 @@ st([tester2])
 ld(60)
 st([tester])
 
-ld(4)
+ld(20)
+st([pieceX])
+st([pieceY])
+
+ld(4) # multiplied by 4
 st([currentPiece])
-ld(0)
+ld(1)
 st([flipX])
 st([flipY])
+ld(0)
 st([swapAxes])
 
 def mino(x, y):
