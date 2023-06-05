@@ -1,3 +1,6 @@
+use enum_display_derive::Display;
+use std::fmt::Display;
+
 use packed_struct::prelude::{PackedStruct, PrimitiveEnum_u8};
 
 pub const NOP: Instruction = Instruction {
@@ -17,7 +20,7 @@ pub struct Instruction {
     pub bus: Bus,
 }
 
-#[derive(PrimitiveEnum_u8, Clone, Copy, Debug, PartialEq)]
+#[derive(PrimitiveEnum_u8, Clone, Copy, Debug, PartialEq, Display)]
 pub enum Operation {
     Load = 0,
     And = 1,
@@ -30,7 +33,7 @@ pub enum Operation {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(PrimitiveEnum_u8, Clone, Copy, Debug, PartialEq)]
+#[derive(PrimitiveEnum_u8, Clone, Copy, Debug, PartialEq, Display)]
 pub enum Mode {
     Acc_D_Far = 0,
     Acc_X_Gt = 1,
@@ -42,7 +45,7 @@ pub enum Mode {
     Out_Y_Xpp_Bra = 7,
 }
 
-#[derive(PrimitiveEnum_u8, Clone, Copy, Debug, PartialEq)]
+#[derive(PrimitiveEnum_u8, Clone, Copy, Debug, PartialEq, Display)]
 pub enum Bus {
     Data = 0,
     Ram = 1,

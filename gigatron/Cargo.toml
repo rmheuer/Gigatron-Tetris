@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 copypasta = "0.8.2"
+enum-display-derive = "0.1.1"
 glium = "0.32.1"
 imgui = { version = "0.11.0", features = ["docking", "tables-api"] }
 imgui-glium-renderer = "0.11.0"

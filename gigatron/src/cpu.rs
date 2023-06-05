@@ -106,14 +106,22 @@ impl Cpu {
             });
         }
 
-        cpu.reset();
+        cpu.hard_reset();
         cpu
     }
 
-    pub fn reset(&mut self) {
+    pub fn soft_reset(&mut self) {
         self.reg.pc = 0;
         self.clock();
         self.reg.pc = 0;
+    }
+
+    pub fn hard_reset(&mut self) {
+        let mut r = rand::thread_rng();
+        self.ram.clear();
+        for _ in 0..RAM_SIZE {
+            self.ram.push(r.gen());
+        }
     }
 
     pub fn clock(&mut self) {

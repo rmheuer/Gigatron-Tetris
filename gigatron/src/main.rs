@@ -2,6 +2,7 @@ use std::io::BufRead;
 
 use cpu::{OpCode, RomWord};
 use itertools::Itertools;
+use packed_struct::PackedStruct;
 
 use crate::vga::{SyncTiming, Vga};
 
@@ -76,7 +77,7 @@ impl SymbolTable {
     }
 }
 
-fn show_ram_view(ui: &mut imgui::Ui, ram: &mut Vec<u8>) {
+fn show_ram_view(ui: &imgui::Ui, ram: &mut Vec<u8>) {
     ui.window("RAM View").build(|| {
         for row in 0..(cpu::RAM_SIZE / 16) {
             let addr_base = row * 16;
@@ -90,7 +91,7 @@ fn show_ram_view(ui: &mut imgui::Ui, ram: &mut Vec<u8>) {
     });
 }
 
-fn show_zero_page_vars(ui: &mut imgui::Ui, ram: &mut Vec<u8>, sym_tbl: &SymbolTable) {
+fn show_zero_page_vars(ui: &imgui::Ui, ram: &mut Vec<u8>, sym_tbl: &SymbolTable) {
     ui.window("Zero Page Variables").build(|| {
         if let Some(_t) = ui.begin_table_with_flags("vars", 6, imgui::TableFlags::RESIZABLE) {
             ui.table_setup_column("Addr");
@@ -117,6 +118,123 @@ fn show_zero_page_vars(ui: &mut imgui::Ui, ram: &mut Vec<u8>, sym_tbl: &SymbolTa
                 ui.text(format!("{}", value));
                 ui.table_next_column();
                 ui.text(format!("{}", value as i8));
+            }
+        }
+    });
+}
+
+enum RunState {
+    FullSpeed,
+    Step,
+    Paused,
+}
+
+struct RunControl {
+    paused: bool,
+}
+
+impl RunControl {
+    fn new() -> Self {
+        Self { paused: false }
+    }
+
+    fn show_ui(&mut self, ui: &imgui::Ui, cpu: &mut cpu::Cpu) -> RunState {
+        let mut step = false;
+        if let Some(_w) = ui.window("Run Control").begin() {
+            if self.paused {
+                if ui.button("Resume") {
+                    self.paused = false;
+                } else {
+                    ui.same_line();
+                    if ui.button("Step") {
+                        step = true;
+                    }
+                }
+            } else {
+                if ui.button("Pause") {
+                    self.paused = true;
+                }
+            }
+
+            ui.spacing();
+            ui.text("Reset:");
+            ui.same_line();
+            if ui.button("Soft") {
+                cpu.soft_reset();
+            }
+            ui.same_line();
+            if ui.button("Hard") {
+                cpu.hard_reset();
+            }
+        }
+
+        if step {
+            RunState::Step
+        } else if self.paused {
+            RunState::Paused
+        } else {
+            RunState::FullSpeed
+        }
+    }
+}
+
+fn show_registers(ui: &imgui::Ui, reg: &mut cpu::RegisterFile) {
+    ui.window("CPU Registers").build(|| {
+        if let Some(_t) = ui.begin_table_with_flags("registers", 5, imgui::TableFlags::RESIZABLE) {
+            ui.table_setup_column("Name");
+            ui.table_setup_column("Hex");
+            ui.table_setup_column("Bin");
+            ui.table_setup_column("UDec");
+            ui.table_setup_column("SDec");
+            ui.table_headers_row();
+
+            let pc = reg.pc;
+            ui.table_next_column();
+            ui.text("PC");
+            ui.table_next_column();
+            ui.text(format!("{:04x}", pc));
+            ui.table_next_column();
+            ui.text(format!("{:016b}", pc));
+            ui.table_next_column();
+            ui.text(format!("{}", pc));
+            ui.table_next_column();
+            ui.text(format!("{}", pc as i16));
+
+            fn show(ui: &imgui::Ui, name: &str, value: u8) {
+                ui.table_next_column();
+                ui.text(name);
+                ui.table_next_column();
+                ui.text(format!("{:02x}", value));
+                ui.table_next_column();
+                ui.text(format!("{:08b}", value));
+                ui.table_next_column();
+                ui.text(format!("{}", value));
+                ui.table_next_column();
+                ui.text(format!("{}", value as i8));
+            }
+
+            show(ui, "IR", reg.ir.0);
+            // TODO: Show detailed instruction info
+
+            show(ui, "D", reg.d);
+            show(ui, "AC", reg.ac);
+            show(ui, "X", reg.x);
+            show(ui, "Y", reg.y);
+            show(ui, "OUT", reg.out);
+        }
+
+        ui.spacing();
+
+        match asm::Instruction::unpack(&[reg.ir.0]) {
+            Ok(inst) => {
+                ui.text("Instruction:");
+                ui.text(format!("Op: {}", inst.op));
+                ui.text(format!("Mode: {}", inst.mode));
+                ui.text(format!("Bus: {}", inst.bus));
+            }
+            Err(e) => {
+                ui.text("Invalid instruction???");
+                ui.text(format!("{}", e));
             }
         }
     });
@@ -152,23 +270,29 @@ fn main() {
     cpu.input = 0xFF;
 
     let mut vga = Vga::new(&horiz_timing, &vert_timing);
+    let mut run_control = RunControl::new();
 
     let mut open = true;
     ctx.run_main_loop(move |ctx, ui| {
-        // Run CPU until next frame
-        // TODO: Execution should be controlled by audio rate
-        loop {
-            cpu.clock();
-            if vga.update(ctx, &cpu.reg) {
-                break;
-            }
-        }
-
         ui.dockspace_over_main_viewport();
 
         ui.show_demo_window(&mut open);
 
+        match run_control.show_ui(ui, &mut cpu) {
+            RunState::FullSpeed => loop {
+                cpu.clock();
+                if vga.update(ctx, &cpu.reg) {
+                    break;
+                }
+            },
+            RunState::Step => {
+                cpu.clock();
+                vga.update(ctx, &cpu.reg);
+            }
+            RunState::Paused => {}
+        }
         vga.show_ui(ui);
+        show_registers(ui, &mut cpu.reg);
         show_ram_view(ui, &mut cpu.ram);
         show_zero_page_vars(ui, &mut cpu.ram, &sym_tbl);
     });
