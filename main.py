@@ -311,6 +311,10 @@ index2 = zpByte('index2')
 retPtr = zpByte('retPtr')
 nextBlock = zpByte('nextBlock')
 
+downButtons = zpByte('downButtons')
+prevButtons = zpByte('prevButtons')
+pressedButtons = zpByte('pressedButtons')
+
 currentPiece = zpByte('currentPiece')
 pieceX = zpByte('pieceX')
 pieceY = zpByte('pieceY')
@@ -326,6 +330,17 @@ srcOffset = zpByte('srcOffset')
 dstOffset = zpByte('dstOffset')
 netOffsetX = zpByte('netOffsetX')
 netOffsetY = zpByte('netOffsetY')
+
+collide = zpByte('collide')
+
+buttonRight     = 1
+buttonLeft      = 2
+buttonDown      = 4
+buttonUp        = 8
+buttonStart     = 16
+buttonSelect    = 32
+buttonB         = 64
+buttonA         = 128
 
 kickPage = 1
 srcKickTbl = 7 * 4
@@ -363,21 +378,31 @@ kickIndirectionTbl = 64
 #####################################################
 align(0x100, 0x100)
 
-collide = zpByte('collide')
-
 label('idle')
 wait(162) # 35 - 196
 returnToLoop()
 
 label('perFrame')
+# Read controller input
+ld([downButtons])
+st([prevButtons]) # TODO: Can we remove this variable?
+ld(IN)
+st([downButtons])
+xora(0xFF)
+anda([prevButtons])
+st([pressedButtons])
+# Rising different where !down & prev
+
 # Erase current piece (8)
 ld(3)
 st([index1])
 #ld(0b000000) # Intentionally different for now
 ld(IN)
 st([color])
-ld('idle')
+ld('moveHorizontal')
 st([nextBlock])
+ld(-5)
+st([index2]) # Set [index2] for moveHorizontal - drawPiece won't touch it
 ld(hi('block_drawPiece'))
 st([nextCodeHi])
 ld('block_drawPiece')
@@ -385,9 +410,42 @@ st([nextCodeLo])
 wait(169 - 8)
 returnToLoop()
 
-# label('moveHorizontal')
-# wait(162)
-# returnToLoop()
+# Attempts to move the piece both left and right
+# 2 scanlines
+# Requires [index2] = -5
+label('moveHorizontal')
+ld([index2])
+bgt(pc() + 3)
+bra(pc() + 3)
+ld(buttonLeft)
+ld(buttonRight)
+anda([pressedButtons])
+beq('moveHorizontal.skip')
+ld([index2])
+adda([pieceX])
+st([pieceX])
+
+# TODO: Check collision...
+bra('moveHorizontal.join')
+nop()
+
+label('moveHorizontal.skip')
+wait(2)
+ld([index2])
+
+label('moveHorizontal.join') # Do ld([index2]) before jumping here
+blt('moveHorizontal.end.skip')
+ld('idle') # TODO: Link to rotation
+bra('moveHorizontal.end.join')
+st([nextCodeLo])
+label('moveHorizontal.end.skip')
+ld(5)
+st([index2])
+label('moveHorizontal.end.join')
+wait(162 - 16)
+returnToLoop()
+
+print("After horiz")
 
 # Draws a tetromino with its rotation center at (cellX, cellY) with color [color]
 # Shape is determined based on [currentPiece]
@@ -498,147 +556,147 @@ adda([pieceY])            # 33
 bra([retPtr])             # 34
 st([cellY])               # 35
 
-label('block_tryRotate')
-ld([index2])
-adda(dstKickTbl, X)
-ld(kickPage, Y)
-ld([Y, X])
-st([dstOffset], X)
-ld(lookdownPage, Y)
-ld([Y, X])
-st([temp]) # Temp has lookupDecode[dstOffset]
+# label('block_tryRotate')
+# ld([index2])
+# adda(dstKickTbl, X)
+# ld(kickPage, Y)
+# ld([Y, X])
+# st([dstOffset], X)
+# ld(lookdownPage, Y)
+# ld([Y, X])
+# st([temp]) # Temp has lookupDecode[dstOffset]
 
-ld([index2])
-adda(srcKickTbl, X)
-ld(kickPage, Y)
-ld([Y, X])
-st([srcOffset], X)
-ld(lookdownPage, Y)
-ld([Y, X]) # AC has lookupDecode[srcOffset]
+# ld([index2])
+# adda(srcKickTbl, X)
+# ld(kickPage, Y)
+# ld([Y, X])
+# st([srcOffset], X)
+# ld(lookdownPage, Y)
+# ld([Y, X]) # AC has lookupDecode[srcOffset]
 
-suba([temp])
-st([netOffsetX])
-adda([pieceX])
-st([pieceX])
+# suba([temp])
+# st([netOffsetX])
+# adda([pieceX])
+# st([pieceX])
 
-ld([srcOffset])
-anda(7)
-st([temp])
-ld([dstOffset])
-anda(7)
-suba([temp]) # dst - src: accounts for kick tables being flipped vertically
-st([temp])
-adda(AC)
-adda(AC)
-adda([temp])
-st([netOffsetY])
-adda([pieceY])
-st([pieceY]) # 28 TODO: FIX NUMBERS
+# ld([srcOffset])
+# anda(7)
+# st([temp])
+# ld([dstOffset])
+# anda(7)
+# suba([temp]) # dst - src: accounts for kick tables being flipped vertically
+# st([temp])
+# adda(AC)
+# adda(AC)
+# adda([temp])
+# st([netOffsetY])
+# adda([pieceY])
+# st([pieceY]) # 28 TODO: FIX NUMBERS
 
-ld(0) # 29
-st([collide]) # 30
+# ld(0) # 29
+# st([collide]) # 30
 
-ld('block_tryRotate.checkRet') # 31
-st([retPtr]) # 32
-ld(1) # 33
+# ld('block_tryRotate.checkRet') # 31
+# st([retPtr]) # 32
+# ld(1) # 33
 
-label('block_tryRotate.loop')
-st([index1])            # 34 81
-bra('getCell')          # 35 82
-adda(2)                 # 36 83  Offset 0, 1 to 2, 3
-# getCell: 37-71 84-118
-label('block_tryRotate.checkRet')
-ld([cellX], X)          # 72 119
-ld([cellY], Y)          # 73 120
-ld([Y, X])              # 74 121
-anda(128)               # 75 122
-ora([collide])          # 76 123
-st([collide])           # 77 124
-ld([index1])            # 78 125
-bne('block_tryRotate.loop') # 79 126
-suba(1)                 # 80 127
+# label('block_tryRotate.loop')
+# st([index1])            # 34 81
+# bra('getCell')          # 35 82
+# adda(2)                 # 36 83  Offset 0, 1 to 2, 3
+# # getCell: 37-71 84-118
+# label('block_tryRotate.checkRet')
+# ld([cellX], X)          # 72 119
+# ld([cellY], Y)          # 73 120
+# ld([Y, X])              # 74 121
+# anda(128)               # 75 122
+# ora([collide])          # 76 123
+# st([collide])           # 77 124
+# ld([index1])            # 78 125
+# bne('block_tryRotate.loop') # 79 126
+# suba(1)                 # 80 127
 
-wait(33)                # 128-160
-ld('block_tryRotate2')  # 161
-st([nextCodeLo])        # 162
-returnToLoop()
+# wait(33)                # 128-160
+# ld('block_tryRotate2')  # 161
+# st([nextCodeLo])        # 162
+# returnToLoop()
 
-# Try rotation part 2
-label('block_tryRotate2')
-ld('block_tryRotate2.checkRet')     # 1
-st([retPtr])                        # 2
-ld(1)                               # 3
-label('block_tryRotate2.loop')
-bra('getCell')                      # 4 50
-st([index1])                        # 5 51
-#                            getCell: 6-40 52-86
-label('block_tryRotate2.checkRet')
-ld([cellX], X)                      # 41 87
-ld([cellY], Y)                      # 42 88
-ld([Y, X])                          # 43 89
-anda(128)                           # 44 90
-ora([collide])                      # 45 91
-st([collide])                       # 46 92
-ld([index1])                        # 47 93
-bne('block_tryRotate2.loop')        # 48 94
-suba(1)                             # 49 95
+# # Try rotation part 2
+# label('block_tryRotate2')
+# ld('block_tryRotate2.checkRet')     # 1
+# st([retPtr])                        # 2
+# ld(1)                               # 3
+# label('block_tryRotate2.loop')
+# bra('getCell')                      # 4 50
+# st([index1])                        # 5 51
+# #                            getCell: 6-40 52-86
+# label('block_tryRotate2.checkRet')
+# ld([cellX], X)                      # 41 87
+# ld([cellY], Y)                      # 42 88
+# ld([Y, X])                          # 43 89
+# anda(128)                           # 44 90
+# ora([collide])                      # 45 91
+# st([collide])                       # 46 92
+# ld([index1])                        # 47 93
+# bne('block_tryRotate2.loop')        # 48 94
+# suba(1)                             # 49 95
 
-ld([collide])                             # 96  If collide != 0, it hit something
-beq('block_tryRotate2.noCollision')       # 97
-ld([index2])                              # 98
-bra(pc()) # REMOVE
-suba(4)                                   # V 99
-bne('block_tryRotate2.collision.retry')   # | 100
-# Last attempt failed, no rotation          | |
-# CCW rotation                              | |
-ld([flipY])                               # | 101
-st([temp])                                # | V 102
-ld([flipX])                               # | | 103
-st([flipY])                               # | | 104
-ld(1)                                     # | | 105
-suba([temp])                              # | | 106
-st([flipX])                               # | | 107
-ld(1)                                     # | | 108
-suba([swapAxes])                          # | | 109
-st([swapAxes])                            # | | 110
-ld('test_nextThing')                                # | | 111
-bra('block_tryRotate2.collision.join')    # | | 112
-st([nextCodeLo])                          # | | 113 >-+
-                                          # | |       |
-label('block_tryRotate2.collision.retry') # | |       |
-# Retry next attempt with next offset       | V       |
-ld([index2])                              # | 102     |
-adda(1)                                   # | 103     |
-st([index2])                              # | 104     |
-ld('block_tryRotate')                     # | 105     |
-st([nextCodeLo])                          # | 106     |
-wait(7)                                   # | 107-113 |
-label('block_tryRotate2.collision.join')  # | |       |
-                                          # | |       |
-ld([pieceX])                              # | 114 <---+
-suba([netOffsetX])                        # | 115
-st([pieceX])                              # | 116
-ld([pieceY])                              # | 117
-suba([netOffsetY])                        # | 118
-bra('block_tryRotate2.join')              # | 119
-st([pieceY])                              # | 120 >-+
-                                          # |       |
-label('block_tryRotate2.noCollision')     # |       |
-# Rotation succeeded, leave piece         # V       |
-ld('test_nextThing')                                # 99      |
-st([nextCodeLo])                          # 100     |
-wait(20)                                  # 101-120 |
-label('block_tryRotate2.join')            # |       |
-wait(42)                                  # 121-162 <
-returnToLoop()
+# ld([collide])                             # 96  If collide != 0, it hit something
+# beq('block_tryRotate2.noCollision')       # 97
+# ld([index2])                              # 98
+# bra(pc()) # REMOVE
+# suba(4)                                   # V 99
+# bne('block_tryRotate2.collision.retry')   # | 100
+# # Last attempt failed, no rotation          | |
+# # CCW rotation                              | |
+# ld([flipY])                               # | 101
+# st([temp])                                # | V 102
+# ld([flipX])                               # | | 103
+# st([flipY])                               # | | 104
+# ld(1)                                     # | | 105
+# suba([temp])                              # | | 106
+# st([flipX])                               # | | 107
+# ld(1)                                     # | | 108
+# suba([swapAxes])                          # | | 109
+# st([swapAxes])                            # | | 110
+# ld('test_nextThing')                                # | | 111
+# bra('block_tryRotate2.collision.join')    # | | 112
+# st([nextCodeLo])                          # | | 113 >-+
+#                                           # | |       |
+# label('block_tryRotate2.collision.retry') # | |       |
+# # Retry next attempt with next offset       | V       |
+# ld([index2])                              # | 102     |
+# adda(1)                                   # | 103     |
+# st([index2])                              # | 104     |
+# ld('block_tryRotate')                     # | 105     |
+# st([nextCodeLo])                          # | 106     |
+# wait(7)                                   # | 107-113 |
+# label('block_tryRotate2.collision.join')  # | |       |
+#                                           # | |       |
+# ld([pieceX])                              # | 114 <---+
+# suba([netOffsetX])                        # | 115
+# st([pieceX])                              # | 116
+# ld([pieceY])                              # | 117
+# suba([netOffsetY])                        # | 118
+# bra('block_tryRotate2.join')              # | 119
+# st([pieceY])                              # | 120 >-+
+#                                           # |       |
+# label('block_tryRotate2.noCollision')     # |       |
+# # Rotation succeeded, leave piece         # V       |
+# ld('test_nextThing')                                # 99      |
+# st([nextCodeLo])                          # 100     |
+# wait(20)                                  # 101-120 |
+# label('block_tryRotate2.join')            # |       |
+# wait(42)                                  # 121-162 <
+# returnToLoop()
 
-label('test_nextThing')
-wait(158)
-ld(3)
-st([index1])
-ld('block_drawPiece')
-st([nextCodeLo])
-returnToLoop()
+# label('test_nextThing')
+# wait(158)
+# ld(3)
+# st([index1])
+# ld('block_drawPiece')
+# st([nextCodeLo])
+# returnToLoop()
 
 #####################################################
 #####################################################
@@ -695,40 +753,40 @@ def fetchKickTable(name, target):
     ld(target, X)
     label('block_setupRotation.ret_' + name)
 
-label('block_setupRotation')
+# label('block_setupRotation')
 
-fetchKickTable('src', srcKickTbl) # 19 Get current kick offsets before rotation
+# fetchKickTable('src', srcKickTbl) # 19 Get current kick offsets before rotation
 
-# Rotate clockwise
-ld([flipX])
-st([temp])
-ld([flipY])
-st([flipX])
-ld(1)
-suba([temp])
-st([flipY])
-ld(1)
-suba([swapAxes])
-st([swapAxes]) # 29
+# # Rotate clockwise
+# ld([flipX])
+# st([temp])
+# ld([flipY])
+# st([flipX])
+# ld(1)
+# suba([temp])
+# st([flipY])
+# ld(1)
+# suba([swapAxes])
+# st([swapAxes]) # 29
 
-fetchKickTable('dst', dstKickTbl) # 48 Get current kick offsets after rotation
+# fetchKickTable('dst', dstKickTbl) # 48 Get current kick offsets after rotation
 
-# TODO: Do rotation attempt sequence instead of immediate draw
-ld(0)
-st([index2])
-ld('block_tryRotate')
-st([nextCodeLo])
-ld(hi('block_tryRotate'))
-st([nextCodeHi])
-#ld(3)
-#st([index1])
-#ld('block_drawPiece')
-#st([nextCodeLo])
-#ld(hi('block_drawPiece'))
-#st([nextCodeHi])
+# # TODO: Do rotation attempt sequence instead of immediate draw
+# ld(0)
+# st([index2])
+# ld('block_tryRotate')
+# st([nextCodeLo])
+# ld(hi('block_tryRotate'))
+# st([nextCodeHi])
+# #ld(3)
+# #st([index1])
+# #ld('block_drawPiece')
+# #st([nextCodeLo])
+# #ld(hi('block_drawPiece'))
+# #st([nextCodeHi])
 
-wait(150 - 6) # 48...196
-returnToLoop()
+# wait(150 - 6) # 48...196
+# returnToLoop()
 
 # kickPage should be in Y
 # Either kickTblSrc or kickTblDst should be in X
