@@ -69,7 +69,9 @@ def calcTimerHi(freq):
 def calcTimerLo(freq):
     return int((calcTickInterval(freq) % 1) * 128)
 
+#####################################################
 # Page 0: Initialization
+#####################################################
 align(0x100, 0x100)
 
 # Initialize shift-down lookup
@@ -307,6 +309,7 @@ returnToLoop()
 index1 = zpByte('index1')
 index2 = zpByte('index2')
 retPtr = zpByte('retPtr')
+nextBlock = zpByte('nextBlock')
 
 currentPiece = zpByte('currentPiece')
 pieceX = zpByte('pieceX')
@@ -318,6 +321,11 @@ swapAxes = zpByte('swapAxes')
 cellX = zpByte('cellX')
 cellY = zpByte('cellY')
 color = zpByte('color')
+
+srcOffset = zpByte('srcOffset')
+dstOffset = zpByte('dstOffset')
+netOffsetX = zpByte('netOffsetX')
+netOffsetY = zpByte('netOffsetY')
 
 kickPage = 1
 srcKickTbl = 7 * 4
@@ -350,49 +358,36 @@ kickIndirectionTbl = 64
 #
 # drawPiece(pieceColor) : Draw updated piece graphic
 
+#####################################################
 # Page 3: Code
+#####################################################
 align(0x100, 0x100)
 
-tester = zpByte('tester')
-tester2 = zpByte('tester2')
-
-label('perFrame')
-
-ld([tester])
-bne('perFrame.noTest')
-suba(1)
-
-ld(59)
-st([tester])
-ld([tester2])
-adda(1)
-anda(0x3F)
-st([tester2])
-ld(hi('block_setupRotation'))
-st([nextCodeHi])
-ld('block_setupRotation')
-bra('perFrame.join')
-st([nextCodeLo])
-
-label('perFrame.noTest')
-st([tester])
-ld(hi('idle'))
-st([nextCodeHi])
-ld('idle')
-st([nextCodeLo])
-wait(5)
-
-label('perFrame.join')
-
-ld([tester2])
-st([color])
-
-wait(169 - 9 - 18) # 28 - 196
-returnToLoop()
+collide = zpByte('collide')
 
 label('idle')
 wait(162) # 35 - 196
 returnToLoop()
+
+label('perFrame')
+# Erase current piece (8)
+ld(3)
+st([index1])
+#ld(0b000000) # Intentionally different for now
+ld(IN)
+st([color])
+ld('idle')
+st([nextBlock])
+ld(hi('block_drawPiece'))
+st([nextCodeHi])
+ld('block_drawPiece')
+st([nextCodeLo])
+wait(169 - 8)
+returnToLoop()
+
+# label('moveHorizontal')
+# wait(162)
+# returnToLoop()
 
 # Draws a tetromino with its rotation center at (cellX, cellY) with color [color]
 # Shape is determined based on [currentPiece]
@@ -412,7 +407,7 @@ st([index1])                 # 76
 blt(pc() + 3)                # 77  index1 < 0 ? idle : drawPiece
 bra(pc() + 3)                # 78
 ld('block_drawPiece')        # 79
-ld('idle')                   # 79
+ld([nextBlock])              # 79
 st([nextCodeLo])             # 80
 wait(55)                     # 81...135
 # Fall-through to drawCell
@@ -430,12 +425,12 @@ for i in range(5):
 ld([loopIdx])          # 194 182 170 158 146
 bne('drawCell.loop')   # 195 183 171 159 147
 suba(1)                # 196 184 172 160 148
-ld([pieceX])
+ld([pieceX]) # REMOVE start
 adda(2, X)
 ld([pieceY])
 adda(2, Y)
 ld(0b111111)
-st([Y, X])
+st([Y, X])   # REMOVE end
 returnToLoop()
 
 # Gets the position of the n'th cell of the current piece
@@ -503,10 +498,6 @@ adda([pieceY])            # 33
 bra([retPtr])             # 34
 st([cellY])               # 35
 
-srcOffset = zpByte('srcOffset')
-dstOffset = zpByte('dstOffset')
-netOffsetX = zpByte('netOffsetX')
-netOffsetY = zpByte('netOffsetY')
 label('block_tryRotate')
 ld([index2])
 adda(dstKickTbl, X)
@@ -544,7 +535,6 @@ st([netOffsetY])
 adda([pieceY])
 st([pieceY]) # 28 TODO: FIX NUMBERS
 
-collide = zpByte('collide')
 ld(0) # 29
 st([collide]) # 30
 
@@ -650,6 +640,10 @@ ld('block_drawPiece')
 st([nextCodeLo])
 returnToLoop()
 
+#####################################################
+#####################################################
+#####################################################
+#####################################################
 align(0x100, 0x100)
 
 label('block_clearScreen')
@@ -772,16 +766,11 @@ label('initTables')
 ld(120)
 st([index1])
 
-ld(0)
-st([tester2])
-ld(60)
-st([tester])
-
 ld(20)
 st([pieceX])
 st([pieceY])
 
-ld(4) # multiplied by 4
+ld(8) # multiplied by 4
 st([currentPiece])
 ld(1)
 st([flipX])

@@ -240,6 +240,34 @@ fn show_registers(ui: &imgui::Ui, reg: &mut cpu::RegisterFile) {
     });
 }
 
+fn show_controller_input(ui: &imgui::Ui) -> u8 {
+    if let Some(_w) = ui.window("Controller").begin() {
+        let input = |name: &str, bit: u8, key: imgui::Key| {
+            ui.button(name);
+            if ui.is_item_active() || (ui.is_window_focused() && ui.is_key_down(key)) {
+                0
+            } else {
+                bit
+            }
+        };
+
+        let val = input("Right", 0b00000001, imgui::Key::RightArrow)
+            | input("Left", 0b00000010, imgui::Key::LeftArrow)
+            | input("Down", 0b00000100, imgui::Key::DownArrow)
+            | input("Up", 0b00001000, imgui::Key::UpArrow)
+            | input("Start", 0b00010000, imgui::Key::Enter)
+            | input("Select", 0b00100000, imgui::Key::RightShift)
+            | input("B", 0b01000000, imgui::Key::Z)
+            | input("A", 0b10000000, imgui::Key::X);
+
+        ui.text(format!("Value: {:02x}: {:08b}", val, val));
+
+        val
+    } else {
+        255
+    }
+}
+
 fn main() {
     let ctx = ui_context::UiContext::new(1280, 720, "Gigatron Emulator");
 
@@ -267,7 +295,6 @@ fn main() {
 
     let rom = load_rom(&rom_file).expect("Failed to read ROM file");
     let mut cpu = cpu::Cpu::new(rom);
-    cpu.input = 0xFF;
 
     let mut vga = Vga::new(&horiz_timing, &vert_timing);
     let mut run_control = RunControl::new();
@@ -278,6 +305,7 @@ fn main() {
 
         ui.show_demo_window(&mut open);
 
+        cpu.input = show_controller_input(ui);
         match run_control.show_ui(ui, &mut cpu) {
             RunState::FullSpeed => loop {
                 cpu.clock();
