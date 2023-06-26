@@ -206,26 +206,46 @@ visibleLine(1, 2)
 visibleLine(2, 3)
 
 # Blank visible line
+# label('visible3')
+# nop()                              # 21
+# ld([nextCodeHi], Y)                # 22
+# ld([xout])                         # 23
+# ld([videoSync_idle], OUT)          # 24 [hSync rises]
+# ld([videoLine])                    # 25
+# adda(1)                            # 26
+# st([videoLine])                    # 27
+# xora(120 + 1)                      # 28
+# bne('visible3.else')               # 29
+# ld('vFrontFirst')                  # 30
+# st([nextVideo])                    # 31
+# ld(vFrontTime - 2)                 # 32
+# jmp(Y, [nextCodeLo])               # 33
+# st([videoLine])                    # 34
+# label('visible3.else')
+# ld('visible0')                     # 31
+# st([nextVideo])                    # 32
+# jmp(Y, [nextCodeLo])               # 33
+# nop()                              # 34
+
 label('visible3')
-nop()                              # 21
-ld([nextCodeHi], Y)                # 22
-ld([xout])                         # 23
-ld([videoSync_idle], OUT)          # 24 [hSync rises]
-ld([videoLine])                    # 25
-adda(1)                            # 26
-st([videoLine])                    # 27
-xora(120 + 1)                      # 28
-bne('visible3.else')               # 29
-ld('vFrontFirst')                  # 30
-st([nextVideo])                    # 31
-ld(vFrontTime - 2)                 # 32
-jmp(Y, [nextCodeLo])               # 33
-st([videoLine])                    # 34
+# ld([nextCodeHi], Y)                # 21
+ld([xout])                         # 21
+ld([videoSync_idle], OUT)          # 22 [hSync rises]
+ld([videoLine])                    # 23
+adda(1)                            # 24
+st([videoLine])                    # 25
+xora(120 + 1)                      # 26
+bne('visible3.else')               # 27
+ld('vFrontFirst')                  # 28
+st([nextVideo])                    # 29
+ld(vFrontTime - 2)                 # 30
+bra('pixels')                      # 31
+st([videoLine])                    # 32
 label('visible3.else')
-ld('visible0')                     # 31
-st([nextVideo])                    # 32
-jmp(Y, [nextCodeLo])               # 33
-nop()                              # 34
+ld('visible0')                     # 29
+st([nextVideo])                    # 30
+bra('pixels')                      # 31
+nop()                              # 32
 
 # First line of vFront, calls perFrame
 label('vFrontFirst')
@@ -309,6 +329,7 @@ returnToLoop()
 index1 = zpByte('index1')
 index2 = zpByte('index2')
 retPtr = zpByte('retPtr')
+retPtrHi = zpByte('retPtrHi')
 nextBlock = zpByte('nextBlock')
 
 downButtons = zpByte('downButtons')
@@ -325,6 +346,9 @@ swapAxes = zpByte('swapAxes')
 cellX = zpByte('cellX')
 cellY = zpByte('cellY')
 color = zpByte('color')
+offsetX = zpByte('offsetX')
+offsetY = zpByte('offsetY')
+offset = offsetY
 
 srcOffset = zpByte('srcOffset')
 dstOffset = zpByte('dstOffset')
@@ -379,10 +403,29 @@ kickIndirectionTbl = 64
 align(0x100, 0x100)
 
 label('idle')
+assert lo(pc()) == 0
 wait(162) # 35 - 196
 returnToLoop()
 
 label('perFrame')
+
+# Make sure we are currently idling - don't interrupt running operations
+ld([nextCodeLo]) # 28
+bne('perFrame.safety.notLo') # 29
+ld([nextCodeHi]) # 30
+suba(hi('idle')) # 31
+bne('perFrame.safety.notHi') # 32
+nop() # 33
+bra('perFrame.safety.pass') # 34
+label('perFrame.safety.notLo')
+nop() # 35 31
+wait(2) # 32 33
+label('perFrame.safety.notHi')
+wait(196-33)
+returnToLoop()
+label('perFrame.safety.pass')
+# 36
+
 # Read controller input
 ld([downButtons])
 st([prevButtons]) # TODO: Can we remove this variable?
@@ -398,6 +441,7 @@ ld(3)
 st([index1])
 #ld(0b000000) # Intentionally different for now
 ld(IN)
+anda(0x3F)
 st([color])
 ld('moveHorizontal')
 st([nextBlock])
@@ -410,43 +454,6 @@ st([nextCodeLo])
 wait(169 - 8)
 returnToLoop()
 
-# Attempts to move the piece both left and right
-# 2 scanlines
-# Requires [index2] = -5
-label('moveHorizontal')
-ld([index2])
-bgt(pc() + 3)
-bra(pc() + 3)
-ld(buttonLeft)
-ld(buttonRight)
-anda([pressedButtons])
-beq('moveHorizontal.skip')
-ld([index2])
-adda([pieceX])
-st([pieceX])
-
-# TODO: Check collision...
-bra('moveHorizontal.join')
-nop()
-
-label('moveHorizontal.skip')
-wait(2)
-ld([index2])
-
-label('moveHorizontal.join') # Do ld([index2]) before jumping here
-blt('moveHorizontal.end.skip')
-ld('idle') # TODO: Link to rotation
-bra('moveHorizontal.end.join')
-st([nextCodeLo])
-label('moveHorizontal.end.skip')
-ld(5)
-st([index2])
-label('moveHorizontal.end.join')
-wait(162 - 16)
-returnToLoop()
-
-print("After horiz")
-
 # Draws a tetromino with its rotation center at (cellX, cellY) with color [color]
 # Shape is determined based on [currentPiece]
 # Shape is transformed based on [flipX], [flipY], and [swapAxes]
@@ -455,7 +462,9 @@ print("After horiz")
 label('block_drawPiece')
 ld('block_drawPiece.return') # 35
 st([retPtr])                 # 36
-bra('getCell')               # 37
+ld(hi('block_drawPiece.return')) # 37
+st([retPtrHi]) # 38
+bra('getCell')               # 37 TODO fix
 ld([index1])                 # 38
 # getCell: 39...73
 label('block_drawPiece.return')
@@ -493,11 +502,8 @@ returnToLoop()
 
 # Gets the position of the n'th cell of the current piece
 # Desired index should be in AC
-# Return address should be in [retPtr]
-# 35 cycles
-offsetX = zpByte('offsetX')
-offsetY = zpByte('offsetY')
-offset = offsetY
+# Return address should be in [retPtr] and [retPtrHi]
+# 36 cycles
 label('getCell')
 
 # Read n'th packed raw offset
@@ -546,247 +552,106 @@ adda([pieceY])            # 30
 st([cellY])               # 31
 ld([offsetY])             # 32
 adda([pieceX])            # 33
-bra([retPtr])             # 34
-st([cellX])               # 35
+ld([retPtrHi], Y)         # 34
+jmp(Y, [retPtr])          # 35
+st([cellX])               # 36
 label('getCell.noSwap')
 adda([pieceX])            # 30
 st([cellX])               # 31
 ld([offsetY])             # 32
 adda([pieceY])            # 33
-bra([retPtr])             # 34
-st([cellY])               # 35
+ld([retPtrHi], Y)         # 34
+jmp(Y, [retPtr])          # 35
+st([cellY])               # 36
 
-# label('block_tryRotate')
-# ld([index2])
-# adda(dstKickTbl, X)
-# ld(kickPage, Y)
-# ld([Y, X])
-# st([dstOffset], X)
-# ld(lookdownPage, Y)
-# ld([Y, X])
-# st([temp]) # Temp has lookupDecode[dstOffset]
-
-# ld([index2])
-# adda(srcKickTbl, X)
-# ld(kickPage, Y)
-# ld([Y, X])
-# st([srcOffset], X)
-# ld(lookdownPage, Y)
-# ld([Y, X]) # AC has lookupDecode[srcOffset]
-
-# suba([temp])
-# st([netOffsetX])
-# adda([pieceX])
-# st([pieceX])
-
-# ld([srcOffset])
-# anda(7)
-# st([temp])
-# ld([dstOffset])
-# anda(7)
-# suba([temp]) # dst - src: accounts for kick tables being flipped vertically
-# st([temp])
-# adda(AC)
-# adda(AC)
-# adda([temp])
-# st([netOffsetY])
-# adda([pieceY])
-# st([pieceY]) # 28 TODO: FIX NUMBERS
-
-# ld(0) # 29
-# st([collide]) # 30
-
-# ld('block_tryRotate.checkRet') # 31
-# st([retPtr]) # 32
-# ld(1) # 33
-
-# label('block_tryRotate.loop')
-# st([index1])            # 34 81
-# bra('getCell')          # 35 82
-# adda(2)                 # 36 83  Offset 0, 1 to 2, 3
-# # getCell: 37-71 84-118
-# label('block_tryRotate.checkRet')
-# ld([cellX], X)          # 72 119
-# ld([cellY], Y)          # 73 120
-# ld([Y, X])              # 74 121
-# anda(128)               # 75 122
-# ora([collide])          # 76 123
-# st([collide])           # 77 124
-# ld([index1])            # 78 125
-# bne('block_tryRotate.loop') # 79 126
-# suba(1)                 # 80 127
-
-# wait(33)                # 128-160
-# ld('block_tryRotate2')  # 161
-# st([nextCodeLo])        # 162
-# returnToLoop()
-
-# # Try rotation part 2
-# label('block_tryRotate2')
-# ld('block_tryRotate2.checkRet')     # 1
-# st([retPtr])                        # 2
-# ld(1)                               # 3
-# label('block_tryRotate2.loop')
-# bra('getCell')                      # 4 50
-# st([index1])                        # 5 51
-# #                            getCell: 6-40 52-86
-# label('block_tryRotate2.checkRet')
-# ld([cellX], X)                      # 41 87
-# ld([cellY], Y)                      # 42 88
-# ld([Y, X])                          # 43 89
-# anda(128)                           # 44 90
-# ora([collide])                      # 45 91
-# st([collide])                       # 46 92
-# ld([index1])                        # 47 93
-# bne('block_tryRotate2.loop')        # 48 94
-# suba(1)                             # 49 95
-
-# ld([collide])                             # 96  If collide != 0, it hit something
-# beq('block_tryRotate2.noCollision')       # 97
-# ld([index2])                              # 98
-# bra(pc()) # REMOVE
-# suba(4)                                   # V 99
-# bne('block_tryRotate2.collision.retry')   # | 100
-# # Last attempt failed, no rotation          | |
-# # CCW rotation                              | |
-# ld([flipY])                               # | 101
-# st([temp])                                # | V 102
-# ld([flipX])                               # | | 103
-# st([flipY])                               # | | 104
-# ld(1)                                     # | | 105
-# suba([temp])                              # | | 106
-# st([flipX])                               # | | 107
-# ld(1)                                     # | | 108
-# suba([swapAxes])                          # | | 109
-# st([swapAxes])                            # | | 110
-# ld('test_nextThing')                                # | | 111
-# bra('block_tryRotate2.collision.join')    # | | 112
-# st([nextCodeLo])                          # | | 113 >-+
-#                                           # | |       |
-# label('block_tryRotate2.collision.retry') # | |       |
-# # Retry next attempt with next offset       | V       |
-# ld([index2])                              # | 102     |
-# adda(1)                                   # | 103     |
-# st([index2])                              # | 104     |
-# ld('block_tryRotate')                     # | 105     |
-# st([nextCodeLo])                          # | 106     |
-# wait(7)                                   # | 107-113 |
-# label('block_tryRotate2.collision.join')  # | |       |
-#                                           # | |       |
-# ld([pieceX])                              # | 114 <---+
-# suba([netOffsetX])                        # | 115
-# st([pieceX])                              # | 116
-# ld([pieceY])                              # | 117
-# suba([netOffsetY])                        # | 118
-# bra('block_tryRotate2.join')              # | 119
-# st([pieceY])                              # | 120 >-+
-#                                           # |       |
-# label('block_tryRotate2.noCollision')     # |       |
-# # Rotation succeeded, leave piece         # V       |
-# ld('test_nextThing')                                # 99      |
-# st([nextCodeLo])                          # 100     |
-# wait(20)                                  # 101-120 |
-# label('block_tryRotate2.join')            # |       |
-# wait(42)                                  # 121-162 <
-# returnToLoop()
-
-# label('test_nextThing')
-# wait(158)
-# ld(3)
-# st([index1])
-# ld('block_drawPiece')
-# st([nextCodeLo])
-# returnToLoop()
-
-#####################################################
-#####################################################
-#####################################################
-#####################################################
-align(0x100, 0x100)
-
-label('block_clearScreen')
-ld([index1])
-adda(7, Y)
-ld(0, X)
-for i in range(80):
-    st(0b00010101, [Y, Xpp])
-ld([index1])
-suba(1)
-bne('block_clearScreen.continue')
-st([index1])
-ld('idle')
-st([nextCodeLo])
-ld(hi('idle'))
-st([nextCodeLo])
-wait(162-91)
-returnToLoop()
-label('block_clearScreen.continue')
-wait(162-87)
+# Attempts to move the piece both left and right
+# 4 scanlines
+# Requires [index2] = -5
+#   index2: left or right
+#   index1: mino index for collision (use loopIdx instead?)
+label('moveHorizontal')
+ld([index2])                                   # 35
+bgt(pc() + 3)                                  # 36
+bra(pc() + 3)                                  # 37
+ld(buttonLeft)                                 # 38
+ld(buttonRight)                                # 38(!)
+anda([pressedButtons])                         # 39
+beq('moveHorizontal.skip')                     # 40
+ld(0)                                          # 41
+st([collide])                                  # 42
+ld([pieceX]) # TODO: renumber
+adda([index2])
+st([pieceX])
+ld('moveHorizontal.collision.getCell.ret')     # 43
+st([retPtr])                                   # 44
+ld(hi('moveHorizontal.collision.getCell.ret'))     # 45
+st([retPtrHi])                                   # 46
+ld(2)                                          # 45 TODO Fix
+label('moveHorizontal.collision.loop')
+bra('getCell')                                 # 46 92 138
+st([index1])                                   # 47 93 139
+#                                       getCell: 48-82 94-128 140-174
+label('moveHorizontal.collision.getCell.ret')
+ld([cellX], X)                                 # 83 129 175
+ld([cellY], Y)                                 # 84 130 176
+ld([Y, X])                                     # 85 131 177
+anda(128)                                      # 86 132 178
+ora([collide])                                 # 87 133 179
+st([collide])                                  # 88 134 180
+ld([index1])                                   # 89 135 181
+bne('moveHorizontal.collision.loop')           # 90 136 182
+suba(1)                                        # 91 137 183
+wait(11-3)                                       # 184-194
+ld('moveHorizontal2')                          # 195
+st([nextCodeLo])                               # 196
 returnToLoop()
 
-# Page 4: Code (cont.)
+label('moveHorizontal2')
+ld('moveHorizontal2.ret')        # 35
+st([retPtr])                     # 36
+ld(hi('moveHorizontal2.ret'))        # 37
+st([retPtrHi])                     # 38
+bra('getCell')                   # 37
+ld(3)                            # 38
+#                         getCell: 39-73
+label('moveHorizontal2.ret')
+ld([cellX], X)                   # 74
+ld([cellY], Y)                   # 75
+ld([Y, X])                       # 76
+anda(128)                        # 77
+ora([collide])                   # 78
+beq('moveHorizontal2.move')      # 79
+ld([pieceX])                     # 80 ---+
+suba([index2])                   # 81    |  Undo movement at start
+bra('moveHorizontal2.join')      # 82    |
+st([pieceX])                     # 83 ---|--+
+label('moveHorizontal2.move')    #       |  |
+nop()                            #       81 |  moveHorizontal skip
+bra('moveHorizontal2.join')      #       82 |  |
+nop()                            #       83 |  V
+label('moveHorizontal.skip')     #       V  | 41
+wait(42)                         # 42-83<|----+
+label('moveHorizontal2.join')    #       |  |
+ld([index2])                     # 84 <--<--+
+blt('moveHorizontal2.next.else') # 85
+ld('block_setupRotation')        # 86 -+
+st([nextCodeLo])                 # 87  |
+ld(hi('block_setupRotation'))    # 88  |
+bra('moveHorizontal2.next.join') # 89  |
+st([nextCodeHi])                 # 90  |
+label('moveHorizontal2.next.else')# |  |
+ld('moveHorizontal')             #  | 87
+st([nextCodeLo])                 #  | 88
+ld(5)                            #  | 89
+st([index2])                     #  |<90
+label('moveHorizontal2.next.join')# |
+wait(196-90)                     # 91-196
+returnToLoop()
+
+########################################################
+########################################################
+########################################################
 align(0x100, 0x100)
-
-# 19 cycles; 13 cycles local, 6 cycles in load
-def fetchKickTable(name, target):
-    rotIdx = temp
-
-    # Prepare for destination table jump
-    ld('block_setupRotation.ret_' + name)
-    st([retPtr])    
-    
-    # Calculate rotation index
-    ld(1)
-    suba([flipX])
-    adda(AC)
-    ora([swapAxes]) # Will result in index 0, 1, 2, 3 clockwise
-
-    # Get destination table address
-    ld(lookdownPage, Y)
-    ora([currentPiece]) # Combine current piece and rotation index
-    adda(kickIndirectionTbl, X)
-    ld([Y, X])
-
-    # Fetch source table into target
-    ld(kickPage, Y)
-    bra(AC)
-    ld(target, X)
-    label('block_setupRotation.ret_' + name)
-
-# label('block_setupRotation')
-
-# fetchKickTable('src', srcKickTbl) # 19 Get current kick offsets before rotation
-
-# # Rotate clockwise
-# ld([flipX])
-# st([temp])
-# ld([flipY])
-# st([flipX])
-# ld(1)
-# suba([temp])
-# st([flipY])
-# ld(1)
-# suba([swapAxes])
-# st([swapAxes]) # 29
-
-# fetchKickTable('dst', dstKickTbl) # 48 Get current kick offsets after rotation
-
-# # TODO: Do rotation attempt sequence instead of immediate draw
-# ld(0)
-# st([index2])
-# ld('block_tryRotate')
-# st([nextCodeLo])
-# ld(hi('block_tryRotate'))
-# st([nextCodeHi])
-# #ld(3)
-# #st([index1])
-# #ld('block_drawPiece')
-# #st([nextCodeLo])
-# #ld(hi('block_drawPiece'))
-# #st([nextCodeHi])
-
-# wait(150 - 6) # 48...196
-# returnToLoop()
 
 # kickPage should be in Y
 # Either kickTblSrc or kickTblDst should be in X
@@ -817,6 +682,250 @@ kick_tbl('kick_o_1', ( 0, -1), ( 0, -1), ( 0, -1), ( 0, -1), ( 0, -1))
 kick_tbl('kick_o_2', (-1, -1), (-1, -1), (-1, -1), (-1, -1), (-1, -1))
 kick_tbl('kick_o_3', (-1,  0), (-1,  0), (-1,  0), (-1,  0), (-1,  0))
 
+# 19 cycles; 13 cycles local, 6 cycles in load
+def fetchKickTable(name, target):
+    rotIdx = temp
+
+    # Prepare for destination table jump
+    ld('block_setupRotation.ret_' + name)
+    st([retPtr])    
+    
+    # Calculate rotation index
+    ld(1)
+    suba([flipX])
+    adda(AC)
+    ora([swapAxes]) # Will result in index 0, 1, 2, 3 clockwise
+
+    # Get destination table address
+    ld(lookdownPage, Y)
+    ora([currentPiece]) # Combine current piece and rotation index
+    adda(kickIndirectionTbl, X)
+    ld([Y, X])
+
+    # Fetch source table into target
+    ld(kickPage, Y)
+    bra(AC)
+    ld(target, X)
+    label('block_setupRotation.ret_' + name)
+
+label('block_setupRotation')
+ld([pressedButtons])
+anda(buttonUp)
+beq('block_setupRotation.skip')
+
+fetchKickTable('src', srcKickTbl) # 19 Get current kick offsets before rotation
+
+# Rotate clockwise
+ld([flipX])
+st([temp])
+ld([flipY])
+st([flipX])
+ld(1)
+suba([temp])
+st([flipY])
+ld(1)
+suba([swapAxes])
+st([swapAxes]) # 29
+
+fetchKickTable('dst', dstKickTbl) # 48 Get current kick offsets after rotation
+
+# TODO: Do rotation attempt sequence instead of immediate draw
+ld(0)
+st([index2])
+ld('block_tryRotate')
+st([nextCodeLo])
+ld(hi('block_tryRotate'))
+st([nextCodeHi])
+
+wait(150 - 6) # 48...196
+returnToLoop()
+
+label('block_setupRotation.skip')
+wait(150)
+ld(hi('idle'))
+st([nextCodeHi])
+ld('idle')
+st([nextCodeLo])
+returnToLoop()
+
+#print("Space", 256 - lo(pc()))
+
+align(0x100, 0x100)
+
+label('block_tryRotate')
+ld([index2])
+adda(dstKickTbl, X)
+ld(kickPage, Y)
+ld([Y, X])
+st([dstOffset], X)
+ld(lookdownPage, Y)
+ld([Y, X])
+st([temp]) # Temp has lookupDecode[dstOffset]
+
+ld([index2])
+adda(srcKickTbl, X)
+ld(kickPage, Y)
+ld([Y, X])
+st([srcOffset], X)
+ld(lookdownPage, Y)
+ld([Y, X]) # AC has lookupDecode[srcOffset]
+
+suba([temp])
+st([netOffsetX])
+adda([pieceX])
+st([pieceX])
+
+ld([srcOffset])
+anda(7)
+st([temp])
+ld([dstOffset])
+anda(7)
+suba([temp]) # dst - src: accounts for kick tables being flipped vertically
+st([temp])
+adda(AC)
+adda(AC)
+adda([temp])
+st([netOffsetY])
+adda([pieceY])
+st([pieceY]) # 28 TODO: FIX NUMBERS
+
+ld(0) # 29
+st([collide]) # 30
+
+ld('block_tryRotate.checkRet') # 31
+st([retPtr]) # 32
+ld(hi('block_tryRotate.checkRet')) # 31
+st([retPtrHi]) # 32
+ld(1) # 33
+
+label('block_tryRotate.loop')
+st([index1])            # 34 81
+ld(hi('getCell'), Y)
+jmp(Y, 'getCell')          # 35 82
+adda(2)                 # 36 83  Offset 0, 1 to 2, 3
+# getCell: 37-71 84-118
+label('block_tryRotate.checkRet')
+ld([cellX], X)          # 72 119
+ld([cellY], Y)          # 73 120
+ld([Y, X])              # 74 121
+anda(128)               # 75 122
+ora([collide])          # 76 123
+st([collide])           # 77 124
+ld([index1])            # 78 125
+bne('block_tryRotate.loop') # 79 126
+suba(1)                 # 80 127
+
+wait(33)                # 128-160
+ld('block_tryRotate2')  # 161
+st([nextCodeLo])        # 162
+returnToLoop()
+
+# Try rotation part 2
+label('block_tryRotate2')
+ld('block_tryRotate2.checkRet')     # 1
+st([retPtr])                        # 2
+ld(hi('block_tryRotate2.checkRet'))     # 1
+st([retPtrHi])                        # 2
+ld(1)                               # 3
+label('block_tryRotate2.loop')
+ld(hi('getCell'), Y)
+jmp(Y, 'getCell')                      # 4 50
+st([index1])                        # 5 51
+#                            getCell: 6-40 52-86
+label('block_tryRotate2.checkRet')
+ld([cellX], X)                      # 41 87
+ld([cellY], Y)                      # 42 88
+ld([Y, X])                          # 43 89
+anda(128)                           # 44 90
+ora([collide])                      # 45 91
+st([collide])                       # 46 92
+ld([index1])                        # 47 93
+bne('block_tryRotate2.loop')        # 48 94
+suba(1)                             # 49 95
+
+ld([collide])                             # 96  If collide != 0, it hit something
+beq('block_tryRotate2.noCollision')       # 97
+ld([index2])                              # 98
+# bra(pc()) # REMOVE
+suba(4)                                   # V 99
+bne('block_tryRotate2.collision.retry')   # | 100
+# Last attempt failed, no rotation          | |
+# CCW rotation                              | |
+ld([flipY])                               # | 101
+st([temp])                                # | V 102
+ld([flipX])                               # | | 103
+st([flipY])                               # | | 104
+ld(1)                                     # | | 105
+suba([temp])                              # | | 106
+st([flipX])                               # | | 107
+ld(1)                                     # | | 108
+suba([swapAxes])                          # | | 109
+st([swapAxes])                            # | | 110
+ld('test_nextThing')                                # | | 111
+bra('block_tryRotate2.collision.join')    # | | 112
+st([nextCodeLo])                          # | | 113 >-+
+                                          # | |       |
+label('block_tryRotate2.collision.retry') # | |       |
+# Retry next attempt with next offset       | V       |
+ld([index2])                              # | 102     |
+adda(1)                                   # | 103     |
+st([index2])                              # | 104     |
+ld('block_tryRotate')                     # | 105     |
+st([nextCodeLo])                          # | 106     |
+wait(7)                                   # | 107-113 |
+label('block_tryRotate2.collision.join')  # | |       |
+                                          # | |       |
+ld([pieceX])                              # | 114 <---+
+suba([netOffsetX])                        # | 115
+st([pieceX])                              # | 116
+ld([pieceY])                              # | 117
+suba([netOffsetY])                        # | 118
+bra('block_tryRotate2.join')              # | 119
+st([pieceY])                              # | 120 >-+
+                                          # |       |
+label('block_tryRotate2.noCollision')     # |       |
+# Rotation succeeded, leave piece         # V       |
+ld('test_nextThing')                                # 99      |
+st([nextCodeLo])                          # 100     |
+wait(20)                                  # 101-120 |
+label('block_tryRotate2.join')            # |       |
+wait(42)                                  # 121-162 <
+returnToLoop()
+
+label('test_nextThing')
+wait(158)
+ld(hi('idle'))
+st([nextCodeHi])
+ld('idle')
+st([nextCodeLo])
+returnToLoop()
+
+#####################################################
+#####################################################
+#####################################################
+#####################################################
+align(0x100, 0x100)
+
+label('block_clearScreen')
+ld([index1])
+adda(7, Y)
+ld(0, X)
+for i in range(80):
+    st(0b00010110, [Y, Xpp])
+ld([index1])
+suba(1)
+bne('block_clearScreen.continue')
+st([index1])
+ld('idle')
+st([nextCodeLo])
+ld(hi('idle'))
+st([nextCodeHi])
+wait(162-91)
+returnToLoop()
+label('block_clearScreen.continue')
+wait(162-87)
+returnToLoop()
+
 # Page 5: Lookups & initialization
 align(0x100, 0x100)
 label('initTables')
@@ -828,7 +937,7 @@ ld(20)
 st([pieceX])
 st([pieceY])
 
-ld(8) # multiplied by 4
+ld(0) # multiplied by 4
 st([currentPiece])
 ld(1)
 st([flipX])

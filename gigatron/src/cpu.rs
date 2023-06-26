@@ -52,9 +52,11 @@ pub struct RomWord {
 }
 
 pub struct Cpu {
+    pub rom: Vec<RomWord>,
+
     pub reg: RegisterFile,
     pub ram: Vec<u8>,
-    pub rom: Vec<RomWord>,
+    pub queued_pc: u16,
 
     pub input: u8,
 }
@@ -83,6 +85,20 @@ impl ResultDest {
     }
 }
 
+pub enum MemOperation {
+    Read { val: u8 },
+    Write { prev_val: u8, new_val: u8 },
+}
+
+pub struct MemAccess {
+    pub addr: u16,
+    pub op: MemOperation,
+}
+
+pub struct CycleInfo {
+    pub mem_access: Option<MemAccess>,
+}
+
 impl Cpu {
     pub fn new(mut rom: Vec<RomWord>) -> Self {
         let mut cpu = Self {
@@ -90,6 +106,7 @@ impl Cpu {
             ram: Vec::with_capacity(RAM_SIZE),
             rom: Vec::with_capacity(ROM_SIZE),
             input: 0,
+            queued_pc: 0,
         };
 
         let mut r = rand::thread_rng();
@@ -114,6 +131,7 @@ impl Cpu {
         self.reg.pc = 0;
         self.clock();
         self.reg.pc = 0;
+        self.queued_pc = 0;
     }
 
     pub fn hard_reset(&mut self) {
@@ -122,15 +140,17 @@ impl Cpu {
         for _ in 0..RAM_SIZE {
             self.ram.push(r.gen());
         }
+        self.soft_reset();
     }
 
-    pub fn clock(&mut self) {
+    pub fn clock(&mut self) -> CycleInfo {
         let mut new_reg = self.reg.clone();
         new_reg.undef = rand::random();
 
         let word = &self.rom[self.reg.pc as usize];
         new_reg.ir = word.inst;
         new_reg.d = word.data;
+        self.queued_pc = self.reg.pc;
 
         let Instruction {
             op: inst,
@@ -175,20 +195,34 @@ impl Cpu {
         }
         let addr: u16 = ((hi as u16) << 8) | (lo as u16);
 
+        let mut mem_access = None;
         let b = match bus {
             Bus::Data => self.reg.d,
             Bus::Ram => {
                 if write {
                     self.reg.undef
                 } else {
-                    self.ram[(addr & 0x7fff) as usize]
+                    let val = self.ram[(addr & 0x7fff) as usize];
+                    mem_access = Some(MemAccess {
+                        addr,
+                        op: MemOperation::Read { val },
+                    });
+                    val
                 }
             }
             Bus::Acc => self.reg.ac,
             Bus::In => self.input,
         };
         if write {
-            self.ram[(addr & 0x7fff) as usize] = b;
+            let ram_addr = (addr & 0x7fff) as usize;
+            mem_access = Some(MemAccess {
+                addr,
+                op: MemOperation::Write {
+                    prev_val: self.ram[ram_addr],
+                    new_val: b,
+                },
+            });
+            self.ram[ram_addr] = b;
         }
 
         let alu = match inst {
@@ -227,5 +261,7 @@ impl Cpu {
         }
 
         self.reg = new_reg;
+
+        CycleInfo { mem_access }
     }
 }
