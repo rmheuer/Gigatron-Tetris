@@ -127,19 +127,49 @@ def has(x):
   """Useful primitive"""
   return x is not None
 
+class Placeholder:
+  def __init__(self, val, fn):
+    self.val = val
+    self.fn = fn
+
+  def __add__(self, other):
+    return Placeholder(self, lambda v: v + other)
+  
+  def __sub__(self, other):
+    return Placeholder(self, lambda v: v - other)
+  
+  def __mul__(self, other):
+    return Placeholder(self, lambda v: v * other)
+  
+  def __truediv__(self, other):
+    return Placeholder(self, lambda v: v / other)
+
+def eval_reference(ref):
+  if isinstance(ref, (int, float)):
+    return int(ref) & 255
+  elif isinstance(ref, Placeholder):
+    sub = eval_reference(ref.val)
+    return ref.fn(sub)
+  elif isinstance(ref, str):
+    if ref in _symbols:
+      return _symbols[ref]
+    else:
+      highlight('Error: Undefined symbol %s' % repr(ref))
+  else:
+    print("Invalid ref: " + repr(ref))
+
+
 def lo(name):
   if isinstance(name, int):
     return name & 255
   else:
-    _refsL.append((name, _romSize))
-    return 0 # placeholder
+    return Placeholder(name, lo)
 
 def hi(name):
   if isinstance(name, int):
     return (name >> 8) & 255
   else:
-    _refsH.append((name, _romSize))
-    return 0 # placeholder
+    return Placeholder(name, hi)
 
 def align(m=0x100, size=0x10000):
   """Insert nops to align with chunk boundary"""
@@ -185,6 +215,8 @@ def zpByte(name, len=1):
   _zpSize = s+len
   assert _zpSize <= 0x100
   _zpSymbols.append((s, len, name))
+
+  # TODO: Return placeholder object so listing can have variable names
   return s
 
 def zpReset(startFrom=1):
@@ -226,18 +258,24 @@ def trampoline():
 
 def end():
   """Resolve symbols and write output"""
-  for name, where in _refsL:
-    if name in _symbols:
-      _rom1[where] += _symbols[name] # Addition allows some label tricks
-      _rom1[where] &= 255
-    else:
-      highlight('Error: Undefined symbol %s' % repr(name))
+  # for name, where in _refsL:
+  #   if name in _symbols:
+  #     _rom1[where] += _symbols[name] # Addition allows some label tricks
+  #     _rom1[where] &= 255
+  #   else:
+  #     highlight('Error: Undefined symbol %s' % repr(name))
 
-  for name, where in _refsH:
-    if name in _symbols:
-      _rom1[where] += _symbols[name] >> 8
-    else:
-      highlight('Error: Undefined symbol %s' % repr(name))
+  # for name, where in _refsH:
+  #   if name in _symbols:
+  #     _rom1[where] += _symbols[name] >> 8
+  #   else:
+  #     highlight('Error: Undefined symbol %s' % repr(name))
+
+  global _rom1
+  new_rom1 = []
+  for operand in _rom1:
+    new_rom1.append(eval_reference(operand))
+  _rom1 = new_rom1
 
   align(1)
 
@@ -362,9 +400,9 @@ def _assemble(op, val, to=AC, addr=None):
   if   val is AC: bus = _busAC
   elif val is IN: bus = _busIN
   elif isinstance(val, (_bytes, _str)): d = lo(_str(val)) # Convenient for branch instructions
-  elif isinstance(val, int): d = val
+  elif isinstance(val, (int, Placeholder)): d = val # Pass through hi/lo placeholders
 
-  _emit(op | mode | bus, d & 255)
+  _emit(op | mode | bus, d)
 
 _mnemonics = [ 'ld', 'anda', 'ora', 'xora', 'adda', 'suba', 'st', 'j' ]
 
@@ -487,8 +525,8 @@ def _emit(opcode, operand):
   global _romSize, _maxRomSize
   lineno = inspect.getframeinfo(_listing).lineno if has(_listing) else None
   if _romSize >= _maxRomSize:
-      disassembly = disassemble(opcode, operand)
-      print('%04x %02x%02x  %s' % (_romSize, opcode, operand, disassembly))
+      # disassembly = disassemble(opcode, operand)
+      # print('%04x %02x%02x  %s' % (_romSize, opcode, operand, disassembly))
       highlight('Error: Program size limit exceeded')
       _maxRomSize = 0x10000 # Extend to full address space to prevent more of the same errors
   _rom0.append(opcode)
