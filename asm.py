@@ -699,8 +699,8 @@ def writeRomFiles(sourceFile):
     _rom2.append(x)
     _rom2.append(y)
   # Padding
-  while len(_rom2) < 2*_maxRomSize:
-    _rom2.append(b'Gigatron!'[ (len(_rom2)-2*_maxRomSize) % 9 ])
+  # while len(_rom2) < 2*_maxRomSize:
+  #   _rom2.append(b'Gigatron!'[ (len(_rom2)-2*_maxRomSize) % 9 ])
   # Write ROM file
   with open(filename, 'wb') as file:
     file.write(_rom2)
@@ -710,6 +710,8 @@ def writeRomFiles(sourceFile):
   with open(filename, 'w') as file:
     for addr, length, name in _zpSymbols:
       file.write('z ' + str(addr) + ' ' + str(length) + ' '  + name + '\n')
+    for name, addr in _symbols.items():
+      file.write('l ' + str(addr) + ' ' + str(name) + '\n')
 
   print('ROM bytes %d words %d' % (len(_rom2), len(_rom2)//2))
   print('Words used %d unused %d' % (_romSize, _maxRomSize-_romSize))

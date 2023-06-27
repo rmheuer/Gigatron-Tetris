@@ -39,6 +39,7 @@ struct ZeroPageVariable {
 
 struct SymbolTable {
     zero_page: Vec<ZeroPageVariable>,
+    labels: BTreeMap<u16, String>, // FIXME there can be multiple labels on same address
 }
 
 impl SymbolTable {
@@ -48,37 +49,52 @@ impl SymbolTable {
         let file = std::fs::File::open(file_name)?;
         let lines = std::io::BufReader::new(file).lines();
 
-        let zero_page = lines
-            .filter_map(Result::ok)
-            .filter_map(|line| {
-                let tokens = line.split(" ").collect_vec();
-                if tokens.is_empty() {
-                    return None;
-                }
+        let mut zero_page = vec![];
+        let mut labels = BTreeMap::new();
 
-                match tokens[0] {
-                    "z" => {
-                        if tokens.len() == 4 {
-                            tokens[1]
-                                .parse::<u8>()
-                                .and_then(|addr| {
-                                    Ok(ZeroPageVariable {
-                                        address: addr,
-                                        length: tokens[2].parse()?,
-                                        name: tokens[3].to_string(),
-                                    })
-                                })
-                                .ok()
-                        } else {
-                            None
+        for line in lines.filter_map(Result::ok) {
+            let tokens = line.split(" ").collect_vec();
+            if tokens.is_empty() {
+                continue;
+            }
+
+            match tokens[0] {
+                "z" => {
+                    if tokens.len() != 4 {
+                        continue;
+                    }
+
+                    if let Ok(addr) = tokens[1].parse() {
+                        if let Ok(length) = tokens[2].parse() {
+                            zero_page.push(ZeroPageVariable {
+                                address: addr,
+                                length,
+                                name: tokens[3].to_string(),
+                            })
                         }
                     }
-                    _ => None,
                 }
-            })
-            .collect_vec();
+                "l" => {
+                    if tokens.len() != 3 {
+                        continue;
+                    }
 
-        Ok(Self { zero_page })
+                    if let Ok(addr) = tokens[1].parse() {
+                        labels.insert(addr, tokens[2].to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Ok(Self { zero_page, labels })
+    }
+
+    fn find_label_before(&self, addr: u16) -> Option<u16> {
+        self.labels
+            .range(..addr)
+            .next_back()
+            .map(|t| t.0.to_owned())
     }
 }
 
@@ -92,6 +108,45 @@ fn show_ram_view(ui: &imgui::Ui, ram: &mut Vec<u8>) {
                 ui.same_line();
                 ui.text(format!("{:02x}", ram[addr]));
             }
+        }
+    });
+}
+
+fn show_rom_view(ui: &imgui::Ui, rom: &Vec<RomWord>, symbols: &SymbolTable, highlight: u16) {
+    ui.window("ROM View").build(|| {
+        let mut addr = 0;
+
+        let highlight_label = symbols.find_label_before(highlight);
+
+        let mut current_tree = ui
+            .tree_node_config("start:")
+            .selected(highlight_label.is_none())
+            .push();
+        for word in rom {
+            if let Some(label) = symbols.labels.get(&addr) {
+                if let Some(t) = current_tree {
+                    t.pop();
+                }
+
+                current_tree = ui
+                    .tree_node_config(format!("{}:", label))
+                    .selected(highlight_label.map_or(false, |a| addr == a))
+                    .push();
+            }
+
+            if let Some(_) = current_tree {
+                let inst = asm::Instruction::unpack(&[word.inst.0]).unwrap();
+                let data = word.data;
+
+                let _id = ui.push_id_int(addr as i32);
+                ui.tree_node_config(inst.disassemble(addr, data, &symbols.labels))
+                    .leaf(true)
+                    .tree_push_on_open(false)
+                    .selected(addr == highlight)
+                    .push();
+            }
+
+            addr += 1;
         }
     });
 }
@@ -623,6 +678,7 @@ fn main() {
         vga.show_ui(ui);
         show_registers(ui, &mut cpu.reg);
         show_ram_view(ui, &mut cpu.ram);
+        show_rom_view(ui, &cpu.rom, &sym_tbl, cpu.reg.pc);
         show_zero_page_vars(ui, &mut cpu.ram, &sym_tbl, &mut watches);
         show_watches_panel(ui, &mut watches);
         debugger.show_ui(ui);
