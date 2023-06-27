@@ -31,6 +31,11 @@ pub struct Vga {
     pixel: usize,
 }
 
+pub struct TimingResult {
+    pub should_render: bool,
+    pub horiz_cycle_err: bool,
+}
+
 impl Vga {
     pub fn new(horiz_timing: &SyncTiming, vert_timing: &SyncTiming) -> Self {
         let min_row = vert_timing.back_porch + vert_timing.pulse;
@@ -109,7 +114,7 @@ impl Vga {
     }
 
     // Returns whether the next frame should be rendered now
-    pub fn update(&mut self, ctx: &mut RenderContext, reg: &RegisterFile) -> bool {
+    pub fn update(&mut self, ctx: &mut RenderContext, reg: &RegisterFile) -> TimingResult {
         let out = reg.out;
         let falling = self.prev_out & !out;
         self.prev_out = out;
@@ -121,7 +126,11 @@ impl Vga {
             self.render(ctx);
         }
 
+        let mut horiz_cycle_err = false;
         if falling & HSYNC != 0 {
+            if self.col != 800 {
+                horiz_cycle_err = true;
+            }
             self.col = 0;
             self.row += 1;
         }
@@ -145,6 +154,9 @@ impl Vga {
 
         self.col += 4;
 
-        render
+        TimingResult {
+            should_render: render,
+            horiz_cycle_err,
+        }
     }
 }

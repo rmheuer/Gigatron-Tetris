@@ -151,6 +151,7 @@ enum PauseReason {
     Manual,
     Breakpoint,
     FrameTimeout,
+    HorizCycleErr,
 }
 
 impl Display for PauseReason {
@@ -159,17 +160,23 @@ impl Display for PauseReason {
             Self::Manual => "Manual",
             Self::Breakpoint => "Hit Breakpoint",
             Self::FrameTimeout => "Frame Timeout",
+            Self::HorizCycleErr => "Horizontal Cycle Error",
         })
     }
 }
 
+// TODO: Merge with debugger?
 struct RunControl {
     paused: Option<PauseReason>,
+    break_on_horiz_cycle_errors: bool,
 }
 
 impl RunControl {
     fn new() -> Self {
-        Self { paused: None }
+        Self {
+            paused: None,
+            break_on_horiz_cycle_errors: false,
+        }
     }
 
     fn pause(&mut self, reason: PauseReason) {
@@ -206,6 +213,11 @@ impl RunControl {
             if ui.button("Hard") {
                 cpu.hard_reset();
             }
+
+            ui.checkbox(
+                "Break on horizontal cycle errors",
+                &mut self.break_on_horiz_cycle_errors,
+            );
         }
 
         if step {
@@ -584,7 +596,13 @@ fn main() {
                         break;
                     }
                     clock_cpu(&mut cpu, &mut watches);
-                    if vga.update(ctx, &cpu.reg) {
+
+                    let vga_timing = vga.update(ctx, &cpu.reg);
+                    if run_control.break_on_horiz_cycle_errors && vga_timing.horiz_cycle_err {
+                        run_control.pause(PauseReason::HorizCycleErr);
+                        break;
+                    }
+                    if vga_timing.should_render {
                         break;
                     }
 
