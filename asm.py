@@ -128,27 +128,37 @@ def has(x):
   return x is not None
 
 class Placeholder:
-  def __init__(self, val, fn):
+  def __init__(self, name, val, fn, should_eval = True, rhs = None):
+    self.name = name
     self.val = val
     self.fn = fn
+    self.should_eval_val = should_eval
+    self.rhs = rhs
+
+  def write(self):
+    if isinstance(self.val, Placeholder):
+      val_write = self.val.write()
+    else:
+      val_write = str(self.val)
+
+    s = self.name + ' ' + val_write
+
+    if self.rhs is not None:
+      s += ' ' + str(self.rhs)
+
+    return s
 
   def __add__(self, other):
-    return Placeholder(self, lambda v: v + other)
-  
-  def __sub__(self, other):
-    return Placeholder(self, lambda v: v - other)
-  
-  def __mul__(self, other):
-    return Placeholder(self, lambda v: v * other)
-  
-  def __truediv__(self, other):
-    return Placeholder(self, lambda v: v / other)
+    return Placeholder("add", self, lambda v: v + other, rhs = other)
 
 def eval_reference(ref):
   if isinstance(ref, (int, float)):
     return int(ref) & 255
   elif isinstance(ref, Placeholder):
-    sub = eval_reference(ref.val)
+    if ref.should_eval_val:
+      sub = eval_reference(ref.val)
+    else:
+      sub = ref.val
     return ref.fn(sub)
   elif isinstance(ref, str):
     if ref in _symbols:
@@ -163,13 +173,13 @@ def lo(name):
   if isinstance(name, int):
     return name & 255
   else:
-    return Placeholder(name, lo)
+    return Placeholder("lo", name, lo)
 
 def hi(name):
   if isinstance(name, int):
     return (name >> 8) & 255
   else:
-    return Placeholder(name, hi)
+    return Placeholder("hi", name, hi)
 
 def align(m=0x100, size=0x10000):
   """Insert nops to align with chunk boundary"""
@@ -204,6 +214,7 @@ def wait(n):
 
 def pc():
   """Current ROM address"""
+  # TODO: Placeholder this one
   return _romSize
 
 def zpByte(name, len=1):
@@ -216,8 +227,7 @@ def zpByte(name, len=1):
   assert _zpSize <= 0x100
   _zpSymbols.append((s, len, name))
 
-  # TODO: Return placeholder object so listing can have variable names
-  return s
+  return Placeholder("zp", name, lambda _: s, should_eval = False)
 
 def zpReset(startFrom=1):
   """Reset zero-page allocation"""
@@ -270,12 +280,6 @@ def end():
   #     _rom1[where] += _symbols[name] >> 8
   #   else:
   #     highlight('Error: Undefined symbol %s' % repr(name))
-
-  global _rom1
-  new_rom1 = []
-  for operand in _rom1:
-    new_rom1.append(eval_reference(operand))
-  _rom1 = new_rom1
 
   align(1)
 
@@ -564,12 +568,33 @@ def getRom1():
 
 # Write ROM files and listing
 def writeRomFiles(sourceFile):
+  global _rom1
 
   # Determine stem for file names
   stem, _ = splitext(sourceFile)        # Remove .py
   stem, _ = splitext(stem)              # Remove .asm
   stem = basename(stem)
   if stem == '': stem = 'out'
+
+  # Write symbol file (*before* placeholder eval)
+  filename = stem + '.sym'
+  print('Create file', filename)
+  with open(filename, 'w') as file:
+    for addr, length, name in _zpSymbols:
+      file.write('z ' + str(addr) + ' ' + str(length) + ' '  + name + '\n')
+    for name, addr in _symbols.items():
+      file.write('l ' + str(addr) + ' ' + str(name) + '\n')
+    addr = 0
+    for operand in _rom1:
+      if isinstance(operand, Placeholder):
+        file.write('p ' + str(addr) + ' ' + operand.write() + '\n')
+      addr += 1
+
+  # Eval all placeholders
+  new_rom1 = []
+  for operand in _rom1:
+    new_rom1.append(eval_reference(operand))
+  _rom1 = new_rom1
 
   # Clarification header emitted once before first instruction
   header = ('              address\n'
@@ -704,14 +729,6 @@ def writeRomFiles(sourceFile):
   # Write ROM file
   with open(filename, 'wb') as file:
     file.write(_rom2)
-
-  filename = stem + '.sym'
-  print('Create file', filename)
-  with open(filename, 'w') as file:
-    for addr, length, name in _zpSymbols:
-      file.write('z ' + str(addr) + ' ' + str(length) + ' '  + name + '\n')
-    for name, addr in _symbols.items():
-      file.write('l ' + str(addr) + ' ' + str(name) + '\n')
 
   print('ROM bytes %d words %d' % (len(_rom2), len(_rom2)//2))
   print('Words used %d unused %d' % (_romSize, _maxRomSize-_romSize))

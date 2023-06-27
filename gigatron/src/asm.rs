@@ -1,7 +1,9 @@
 use enum_display_derive::Display;
-use std::{collections::BTreeMap, fmt::Display};
+use std::fmt::Display;
 
 use packed_struct::prelude::{PackedStruct, PrimitiveEnum_u8};
+
+use crate::Placeholder;
 
 pub const NOP: Instruction = Instruction {
     op: Operation::Load,
@@ -21,7 +23,12 @@ pub struct Instruction {
 }
 
 impl Instruction {
-    pub fn disassemble(&self, rom_addr: u16, data: u8, labels: &BTreeMap<u16, String>) -> String {
+    pub fn disassemble(
+        &self,
+        rom_addr: u16,
+        data: u8,
+        placeholder: Option<&Placeholder>,
+    ) -> String {
         let op_name = match self.op {
             Operation::Load => "ld   ",
             Operation::And => "anda ",
@@ -42,49 +49,48 @@ impl Instruction {
             },
         };
 
-        let (ac, out) = if self.op == Operation::Store {
-            ("", "")
+        let out = if self.op == Operation::Store {
+            ""
         } else {
-            (",ac", ",out")
+            ",out"
+        };
+
+        let data_str = match placeholder {
+            Some(p) => p.to_string(),
+            None => format!("${:02x}", data),
         };
 
         let (addr, reg) = if self.op == Operation::Jump {
-            (format!("[{:02x}]", data), "")
+            (format!("[{}]", data_str), "")
         } else {
             match self.mode {
-                Mode::Acc_D_Far => (format!("[${:02x}]", data), ac),
-                Mode::Acc_X_Gt => ("[x]".to_string(), ac),
-                Mode::Acc_Y_D_Lt => (format!("[y,${:02x}]", data), ac),
-                Mode::Acc_Y_X_Ne => ("[y,x]".to_string(), ac),
-                Mode::X_D_Eq => (format!("[${:02x}]", data), ",x"),
-                Mode::Y_D_Ge => (format!("[${:02x}]", data), ",y"),
-                Mode::Out_D_Le => (format!("[${:02x}]", data), out),
+                Mode::Acc_D_Far => (format!("[{}]", data_str), ""),
+                Mode::Acc_X_Gt => ("[x]".to_string(), ""),
+                Mode::Acc_Y_D_Lt => (format!("[y,{}]", data_str), ""),
+                Mode::Acc_Y_X_Ne => ("[y,x]".to_string(), ""),
+                Mode::X_D_Eq => (format!("[{}]", data_str), ",x"),
+                Mode::Y_D_Ge => (format!("[{}]", data_str), ",y"),
+                Mode::Out_D_Le => (format!("[{}]", data_str), out),
                 Mode::Out_Y_Xpp_Bra => ("[y,x++]".to_string(), out),
             }
         };
 
-        let mut bus = match self.bus {
-            Bus::Data => format!("${:02x}", data),
-            Bus::Ram => addr,
+        let bus = match self.bus {
+            Bus::Data => data_str,
+            Bus::Ram => addr.clone(),
             Bus::Acc => "ac".to_string(),
             Bus::In => "in".to_string(),
         };
 
-        if self.op == Operation::Jump && self.mode != Mode::Acc_D_Far && self.bus == Bus::Data {
-            let lo = rom_addr & 255;
-            let mut hi = rom_addr >> 8;
-            if lo == 255 {
-                hi = (hi + 1) & 255;
+        if self.op == Operation::Store {
+            if self.bus == Bus::Acc {
+                format!("{:04x}  {}{}{}", rom_addr, op_name, addr, reg)
+            } else {
+                format!("{:04x}  {}{},{}{}", rom_addr, op_name, bus, addr, reg)
             }
-            let dest = (hi << 8) + data as u16;
-
-            bus = match labels.get(&dest) {
-                Some(name) => format!("'{}'", name),
-                None => format!("${:04x}", dest),
-            };
+        } else {
+            format!("{:04x}  {}{}{}", rom_addr, op_name, bus, reg)
         }
-
-        format!("{:04x}  {}{}{}", rom_addr, op_name, bus, reg)
     }
 }
 

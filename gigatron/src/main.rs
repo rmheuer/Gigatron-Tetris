@@ -1,5 +1,8 @@
+// TODO: Move things out of this file
+
 use std::{
     collections::{BTreeMap, LinkedList},
+    error::Error,
     fmt::Display,
     io::BufRead,
 };
@@ -37,9 +40,74 @@ struct ZeroPageVariable {
     name: String,
 }
 
+pub enum Placeholder {
+    Literal {
+        val: String,
+    },
+    Unary {
+        name: String,
+        val: Box<Placeholder>,
+    },
+    Binary {
+        name: String,
+        lhs: Box<Placeholder>,
+        rhs: Box<Placeholder>,
+    },
+}
+
+impl Display for Placeholder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Literal { val } => write!(f, "{}", val),
+            Self::Unary { name, val } => write!(f, "{}({})", name, val),
+            Self::Binary { name, lhs, rhs } => write!(f, "{} {} {}", lhs, name, rhs),
+        }
+    }
+}
+
+impl Placeholder {
+    fn parse(tokens: &[&str]) -> Result<(Self, usize), Box<dyn Error>> {
+        match tokens[0] {
+            token @ ("hi" | "lo") => {
+                let (val, val_len) = Self::parse(&tokens[1..])?;
+                Ok((
+                    Self::Unary {
+                        name: token.to_string(),
+                        val: Box::new(val),
+                    },
+                    val_len + 1,
+                ))
+            }
+            token @ "add" => {
+                let (lhs, lhs_len) = Self::parse(&tokens[1..])?;
+                let (rhs, rhs_len) = Self::parse(&tokens[(1 + lhs_len)..])?;
+                Ok((
+                    Self::Binary {
+                        name: token.to_string(),
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    },
+                    lhs_len + rhs_len + 1,
+                ))
+            }
+            "zp" => {
+                let (val, val_len) = Self::parse(&tokens[1..])?;
+                Ok((val, val_len + 1))
+            }
+            token => Ok((
+                Self::Literal {
+                    val: token.to_string(),
+                },
+                1,
+            )),
+        }
+    }
+}
+
 struct SymbolTable {
     zero_page: Vec<ZeroPageVariable>,
     labels: BTreeMap<u16, String>, // FIXME there can be multiple labels on same address
+    placeholders: BTreeMap<u16, Placeholder>,
 }
 
 impl SymbolTable {
@@ -51,6 +119,7 @@ impl SymbolTable {
 
         let mut zero_page = vec![];
         let mut labels = BTreeMap::new();
+        let mut placeholders = BTreeMap::new();
 
         for line in lines.filter_map(Result::ok) {
             let tokens = line.split(" ").collect_vec();
@@ -83,11 +152,22 @@ impl SymbolTable {
                         labels.insert(addr, tokens[2].to_string());
                     }
                 }
+                "p" => {
+                    if let Ok(addr) = tokens[1].parse() {
+                        if let Ok((placeholder, _)) = Placeholder::parse(&tokens[2..]) {
+                            placeholders.insert(addr, placeholder);
+                        }
+                    }
+                }
                 _ => {}
             }
         }
 
-        Ok(Self { zero_page, labels })
+        Ok(Self {
+            zero_page,
+            labels,
+            placeholders,
+        })
     }
 
     fn find_label_before(&self, addr: u16) -> Option<u16> {
@@ -112,41 +192,73 @@ fn show_ram_view(ui: &imgui::Ui, ram: &mut Vec<u8>) {
     });
 }
 
-fn show_rom_view(ui: &imgui::Ui, rom: &Vec<RomWord>, symbols: &SymbolTable, highlight: u16) {
+fn show_rom_view(
+    ui: &imgui::Ui,
+    rom: &Vec<RomWord>,
+    symbols: &SymbolTable,
+    highlight: u16,
+    debugger: &mut Debugger,
+) {
     ui.window("ROM View").build(|| {
-        let mut addr = 0;
+        if let Some(_t) = ui.begin_table_with_flags("rom", 2, imgui::TableFlags::BORDERS_V) {
+            ui.table_setup_column("Instruction");
+            let mut bp_col = imgui::TableColumnSetup::new("Breakpoint");
+            bp_col.flags = imgui::TableColumnFlags::WIDTH_FIXED;
+            bp_col.init_width_or_weight = 50.0;
+            ui.table_setup_column_with(bp_col);
 
-        let highlight_label = symbols.find_label_before(highlight);
+            let mut addr = 0;
 
-        let mut current_tree = ui
-            .tree_node_config("start:")
-            .selected(highlight_label.is_none())
-            .push();
-        for word in rom {
-            if let Some(label) = symbols.labels.get(&addr) {
-                if let Some(t) = current_tree {
-                    t.pop();
+            let highlight_label = symbols.find_label_before(highlight);
+
+            ui.table_next_column();
+            let mut current_tree = ui
+                .tree_node_config("start:")
+                .selected(highlight_label.is_none())
+                .push();
+            ui.table_next_column();
+            ui.text_disabled("--");
+            for word in rom {
+                if let Some(label) = symbols.labels.get(&addr) {
+                    ui.table_next_column();
+                    if let Some(t) = current_tree {
+                        t.pop();
+                    }
+
+                    current_tree = ui
+                        .tree_node_config(format!("{}:", label))
+                        .selected(highlight_label.map_or(false, |a| addr == a))
+                        .push();
+                    ui.table_next_column();
+                    ui.text_disabled("--");
                 }
 
-                current_tree = ui
-                    .tree_node_config(format!("{}:", label))
-                    .selected(highlight_label.map_or(false, |a| addr == a))
-                    .push();
-            }
+                if let Some(_) = current_tree {
+                    let inst = asm::Instruction::unpack(&[word.inst.0]).unwrap();
+                    let data = word.data;
 
-            if let Some(_) = current_tree {
-                let inst = asm::Instruction::unpack(&[word.inst.0]).unwrap();
-                let data = word.data;
-
-                let _id = ui.push_id_int(addr as i32);
-                ui.tree_node_config(inst.disassemble(addr, data, &symbols.labels))
+                    ui.table_next_column();
+                    let _id = ui.push_id_int(addr as i32);
+                    ui.align_text_to_frame_padding();
+                    ui.tree_node_config(inst.disassemble(
+                        addr,
+                        data,
+                        symbols.placeholders.get(&addr),
+                    ))
                     .leaf(true)
                     .tree_push_on_open(false)
                     .selected(addr == highlight)
                     .push();
-            }
+                    ui.table_next_column();
 
-            addr += 1;
+                    let mut bp = debugger.has_breakpoint(addr);
+                    if ui.checkbox("##bp", &mut bp) {
+                        debugger.set_breakpoint(addr, bp);
+                    }
+                }
+
+                addr += 1;
+            }
         }
     });
 }
@@ -530,7 +642,11 @@ impl Debugger {
     }
 
     fn should_break(&self, addr: u16) -> bool {
-        self.breakpoints_enabled && self.breakpoints.contains(addr as usize)
+        self.breakpoints_enabled && self.has_breakpoint(addr)
+    }
+
+    fn has_breakpoint(&self, addr: u16) -> bool {
+        self.breakpoints.contains(addr as usize)
     }
 
     fn show_ui(&mut self, ui: &imgui::Ui) {
@@ -678,7 +794,7 @@ fn main() {
         vga.show_ui(ui);
         show_registers(ui, &mut cpu.reg);
         show_ram_view(ui, &mut cpu.ram);
-        show_rom_view(ui, &cpu.rom, &sym_tbl, cpu.reg.pc);
+        show_rom_view(ui, &cpu.rom, &sym_tbl, cpu.reg.pc, &mut debugger);
         show_zero_page_vars(ui, &mut cpu.ram, &sym_tbl, &mut watches);
         show_watches_panel(ui, &mut watches);
         debugger.show_ui(ui);
